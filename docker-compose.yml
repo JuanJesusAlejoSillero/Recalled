@@ -1,0 +1,55 @@
+services:
+  # Backend - API Flask
+  backend:
+    image: ghcr.io/juanjesusalejosillero/recalled-backend:${IMAGE_TAG:-latest}
+    container_name: recalled-backend
+    restart: unless-stopped
+    environment:
+      - FLASK_ENV=production
+      - "SECRET_KEY=${SECRET_KEY:?ERROR: SECRET_KEY is required. Generate one with: python -c import secrets; print(secrets.token_hex(32))}"
+      - "JWT_SECRET_KEY=${JWT_SECRET_KEY:?ERROR: JWT_SECRET_KEY is required. Generate one with: python -c import secrets; print(secrets.token_hex(32))}"
+      - DATABASE_URL=sqlite:////app/data/reviews.db
+      - UPLOAD_FOLDER=/app/uploads
+      - MAX_CONTENT_LENGTH=5242880
+      - ALLOWED_EXTENSIONS=jpg,jpeg,png,webp
+      - "ADMIN_USERNAME=${ADMIN_USERNAME:-admin}"
+      - "ADMIN_PASSWORD=${ADMIN_PASSWORD:?ERROR: ADMIN_PASSWORD is required. Set a strong password in .env}"
+      - "ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}"
+      - "CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}"
+    volumes:
+      - ./data:/app/data
+      - ./uploads:/app/uploads
+      - ./logs:/app/logs
+    expose:
+      - "5000"
+    networks:
+      - recalled-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Frontend - React + Nginx
+  frontend:
+    image: ghcr.io/juanjesusalejosillero/recalled-frontend:${IMAGE_TAG:-latest}
+    container_name: recalled-frontend
+    restart: unless-stopped
+    environment:
+      - VITE_API_URL=${VITE_API_URL:-/api/v1}
+    ports:
+      - "127.0.0.1:${APP_PORT:-8090}:80"
+    depends_on:
+      - backend
+    networks:
+      - recalled-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  recalled-network:
+    driver: bridge

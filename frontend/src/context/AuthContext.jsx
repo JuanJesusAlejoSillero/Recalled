@@ -1,0 +1,50 @@
+import { create } from 'zustand';
+import { authAPI } from '../services/api';
+
+const useAuthStore = create((set, get) => ({
+  user: null,
+  loading: true,
+  _initialized: false,
+
+  initialize: async () => {
+    if (get()._initialized) return;
+    set({ _initialized: true });
+
+    const token = localStorage.getItem('access_token');
+    if (!token) {
+      set({ user: null, loading: false });
+      return;
+    }
+    try {
+      const { data } = await authAPI.me();
+      set({ user: data, loading: false });
+    } catch {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      set({ user: null, loading: false });
+    }
+  },
+
+  login: async (username, password) => {
+    const { data } = await authAPI.login({ username, password });
+    localStorage.setItem('access_token', data.access_token);
+    localStorage.setItem('refresh_token', data.refresh_token);
+    set({ user: data.user });
+    return data.user;
+  },
+
+  logout: async () => {
+    try {
+      await authAPI.logout();
+    } catch {
+      // Ignore logout errors
+    }
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    set({ user: null, _initialized: false });
+  },
+
+  updateUser: (userData) => set({ user: userData }),
+}));
+
+export default useAuthStore;

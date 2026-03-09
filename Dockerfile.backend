@@ -1,0 +1,39 @@
+# Dockerfile para Backend (Flask)
+FROM python:3.11-slim
+
+# Establecer directorio de trabajo
+WORKDIR /app
+
+# Instalar dependencias del sistema
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copiar archivos de dependencias
+COPY backend/requirements.txt .
+
+# Instalar dependencias de Python
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copiar código de la aplicación
+COPY backend/ .
+
+# Crear directorios necesarios
+RUN mkdir -p /app/data /app/uploads/photos /app/logs
+
+# Establecer permisos
+RUN chmod -R 755 /app/uploads /app/data /app/logs
+
+# Exponer puerto
+EXPOSE 5000
+
+# Variables de entorno por defecto
+ENV FLASK_APP=run.py
+ENV FLASK_ENV=production
+ENV PYTHONUNBUFFERED=1
+
+# Asegurar permisos del script de inicialización (ya copiado con COPY backend/ .)
+RUN chmod +x /app/init.sh
+
+# Comando de inicio
+CMD ["/app/init.sh"]
