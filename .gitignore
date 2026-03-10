@@ -11,8 +11,11 @@ venv/
 
 # Data (persistent volumes - don't commit)
 data/
+data-dev/
 uploads/
+uploads-dev/
 logs/
+logs-dev/
 
 # Build output
 frontend/dist/

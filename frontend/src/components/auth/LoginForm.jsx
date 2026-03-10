@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../../hooks/useAuth';
+import { useLanguage } from '../../context/LanguageContext';
 
 function LoginForm() {
   const { login } = useAuth();
+  const { t } = useLanguage();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { register, handleSubmit, formState: { errors } } = useForm();
@@ -14,7 +16,7 @@ function LoginForm() {
     try {
       await login(data.username, data.password);
     } catch (err) {
-      setError(err.response?.data?.error || 'Error al iniciar sesión');
+      setError(err.response?.data?.error || t('login.error'));
     } finally {
       setLoading(false);
     }
@@ -30,15 +32,15 @@ function LoginForm() {
 
       <div>
         <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Usuario
+          {t('login.username')}
         </label>
         <input
           id="username"
           type="text"
           autoComplete="username"
-          {...register('username', { required: 'El usuario es obligatorio' })}
+          {...register('username', { required: t('login.usernameRequired') })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
-          placeholder="Tu nombre de usuario"
+          placeholder={t('login.usernamePlaceholder')}
         />
         {errors.username && (
           <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>
@@ -47,15 +49,15 @@ function LoginForm() {
 
       <div>
         <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Contraseña
+          {t('login.password')}
         </label>
         <input
           id="password"
           type="password"
           autoComplete="current-password"
-          {...register('password', { required: 'La contraseña es obligatoria' })}
+          {...register('password', { required: t('login.passwordRequired') })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
-          placeholder="Tu contraseña"
+          placeholder={t('login.passwordPlaceholder')}
         />
         {errors.password && (
           <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>
@@ -67,7 +69,7 @@ function LoginForm() {
         disabled={loading}
         className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        {loading ? 'Iniciando sesión...' : 'Iniciar sesión'}
+        {loading ? t('login.submitting') : t('login.submit')}
       </button>
     </form>
   );

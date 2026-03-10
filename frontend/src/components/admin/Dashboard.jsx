@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { FiUsers, FiMapPin, FiStar } from 'react-icons/fi';
 import { usersAPI, placesAPI, reviewsAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 function Dashboard() {
   const [stats, setStats] = useState({ users: 0, places: 0, reviews: 0 });
   const [loading, setLoading] = useState(true);
+  const { t } = useLanguage();
 
   useEffect(() => {
     const loadStats = async () => {
@@ -29,14 +31,14 @@ function Dashboard() {
   }, []);
 
   const cards = [
-    { label: 'Usuarios', value: stats.users, icon: FiUsers, color: 'bg-blue-500' },
-    { label: 'Lugares', value: stats.places, icon: FiMapPin, color: 'bg-green-500' },
-    { label: 'Reviews', value: stats.reviews, icon: FiStar, color: 'bg-yellow-500' },
+    { label: t('admin.users'), value: stats.users, icon: FiUsers, color: 'bg-blue-500' },
+    { label: t('admin.places'), value: stats.places, icon: FiMapPin, color: 'bg-green-500' },
+    { label: t('admin.reviews'), value: stats.reviews, icon: FiStar, color: 'bg-yellow-500' },
   ];
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">Panel de Administración</h2>
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-6">{t('admin.dashboard')}</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {cards.map((card) => (
           <div key={card.label} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">

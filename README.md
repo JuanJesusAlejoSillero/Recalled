@@ -13,6 +13,7 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Admin panel** - User management and general statistics
 - **Personal dashboard** - Your stats, recent reviews, and top-rated places
 - **Dark mode** - Toggle between light and dark themes
+- **Multi-language** - Spanish and English with automatic browser detection
 - **Responsive** - Mobile-friendly with hamburger menu navigation
 
 ## Tech Stack
@@ -62,19 +63,22 @@ docker compose -f docker-compose.dev.yml up -d --build
 
 Open `http://localhost:8090` (or the port configured in `APP_PORT`) and log in with the admin credentials.
 
+> **Dev stack**: runs on port `8091` by default (`APP_DEV_PORT`). Both stacks can run simultaneously without conflict.
+
 ## Configuration
 
 All configuration is done through the `.env` file. See [.env.example](.env.example) for all available options:
 
-| Variable             | Default             | Description                            |
-|----------------------|---------------------|----------------------------------------|
-| `APP_PORT`           | `8090`              | Port to expose the app on              |
-| `IMAGE_TAG`          | `latest`            | Docker image tag (e.g. `1.0.0`)        |
-| `ADMIN_USERNAME`     | `admin`             | Admin username                         |
-| `ADMIN_EMAIL`        | `admin@example.com` | Admin email                            |
-| `CORS_ORIGINS`       | `http://localhost`  | Allowed CORS origins (comma-separated) |
-| `MAX_CONTENT_LENGTH` | `5242880`           | Max upload size in bytes (5 MB)        |
-| `ALLOWED_EXTENSIONS` | `jpg,jpeg,png,webp` | Allowed file extensions for uploads    |
+| Variable             | Default             | Description                                          |
+|----------------------|---------------------|------------------------------------------------------|
+| `APP_PORT`           | `8090`              | Port for the production stack (`docker-compose.yml`) |
+| `APP_DEV_PORT`       | `8091`              | Port for the dev stack (`docker-compose.dev.yml`)    |
+| `IMAGE_TAG`          | `latest`            | Docker image tag (e.g. `1.0.0`)                      |
+| `ADMIN_USERNAME`     | `admin`             | Admin username                                       |
+| `ADMIN_EMAIL`        | `admin@example.com` | Admin email                                          |
+| `CORS_ORIGINS`       | `http://localhost`  | Allowed CORS origins (comma-separated)               |
+| `MAX_CONTENT_LENGTH` | `5242880`           | Max upload size in bytes (5 MB)                      |
+| `ALLOWED_EXTENSIONS` | `jpg,jpeg,png,webp` | Allowed file extensions for uploads                  |
 
 ## Project Structure
 
@@ -85,7 +89,7 @@ Recalled/
 │   │   ├── models/          # User, Place, Review, ReviewPhoto
 │   │   ├── routes/          # auth, users, places, reviews, stats
 │   │   ├── schemas/         # Marshmallow validation schemas
-│   │   ├── middleware/       # JWT auth decorators, validators
+│   │   ├── middleware/      # JWT auth decorators, validators
 │   │   ├── utils/           # File handler, security helpers
 │   │   ├── __init__.py      # Flask app factory
 │   │   └── config.py        # Configuration
@@ -97,7 +101,8 @@ Recalled/
 │   │   ├── components/      # UI components (auth, admin, places, reviews, common)
 │   │   ├── pages/           # Route pages
 │   │   ├── services/        # Axios API client
-│   │   ├── context/         # Zustand auth store, theme context
+│   │   ├── context/         # Zustand auth store, theme context, language context
+│   │   ├── i18n/            # Translation strings (ES/EN)
 │   │   ├── hooks/           # Custom hooks
 │   │   └── utils/           # Helper functions
 │   ├── env.sh               # Runtime env injection for Docker
@@ -107,8 +112,8 @@ Recalled/
 │   └── nginx.conf           # Reverse proxy config
 ├── Dockerfile.backend
 ├── Dockerfile.frontend
-├── docker-compose.yml        # Production (pre-built images from GHCR)
-├── docker-compose.dev.yml    # Development (local build)
+├── docker-compose.yml       # Production (pre-built images from GHCR)
+├── docker-compose.dev.yml   # Development (local build)
 └── .env.example
 ```
 
@@ -116,11 +121,21 @@ Recalled/
 
 Data is stored in mounted volumes on your host:
 
+**Production stack (`docker-compose.yml`):**
+
 | Directory    | Contents                       |
 |--------------|--------------------------------|
 | `./data/`    | SQLite database (`reviews.db`) |
 | `./uploads/` | User-uploaded photos           |
 | `./logs/`    | Gunicorn access and error logs |
+
+**Dev stack (`docker-compose.dev.yml`):**
+
+| Directory        | Contents                       |
+|------------------|--------------------------------|
+| `./data-dev/`    | SQLite database (`reviews.db`) |
+| `./uploads-dev/` | User-uploaded photos           |
+| `./logs-dev/`    | Gunicorn access and error logs |
 
 ## Backup
 
@@ -152,7 +167,7 @@ docker compose -f docker-compose.dev.yml up -d --force-recreate
 To expose Recalled with a custom domain and HTTPS, place a reverse proxy in front (Nginx, Apache, Traefik, Caddy, etc.):
 
 1. Set `CORS_ORIGINS` in `.env` to your domain: `https://reviews.yourdomain.com`
-2. Set `APP_PORT` to your preferred port
+2. Set `APP_PORT` to your preferred port (production) or `APP_DEV_PORT` (dev stack)
 3. Configure your reverse proxy to point to that port and handle SSL certificates
 4. Consider adding rate limiting to the login endpoint (`/api/v1/auth/login`)
 

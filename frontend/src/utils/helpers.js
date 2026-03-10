@@ -1,9 +1,9 @@
 /**
  * Format a date string to a locale-friendly format.
  */
-export function formatDate(dateStr) {
+export function formatDate(dateStr, locale = 'es-ES') {
   if (!dateStr) return '';
-  return new Date(dateStr).toLocaleDateString('es-ES', {
+  return new Date(dateStr).toLocaleDateString(locale, {
     year: 'numeric',
     month: 'long',
     day: 'numeric',

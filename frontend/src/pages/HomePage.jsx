@@ -5,9 +5,11 @@ import { useAuth } from '../hooks/useAuth';
 import { reviewsAPI, statsAPI } from '../services/api';
 import ReviewList from '../components/reviews/ReviewList';
 import PlaceList from '../components/places/PlaceList';
+import { useLanguage } from '../context/LanguageContext';
 
 function HomePage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [recentReviews, setRecentReviews] = useState([]);
   const [topPlaces, setTopPlaces] = useState([]);
   const [userStats, setUserStats] = useState(null);
@@ -47,15 +49,15 @@ function HomePage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Hola, {user?.username}!</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Bienvenido a tu diario de viaje</p>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('home.greeting', { username: user?.username })}</h1>
+            <p className="text-gray-500 dark:text-gray-400 mt-1">{t('home.subtitle')}</p>
           </div>
           <Link
             to="/reviews/new"
             className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
           >
             <FiPlus className="w-4 h-4" />
-            <span>Nueva Review</span>
+            <span>{t('common.newReview')}</span>
           </Link>
         </div>
 
@@ -67,15 +69,15 @@ function HomePage() {
             </div>
             <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <p className="text-2xl font-bold text-green-600 dark:text-green-400">{userStats.places_visited}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Lugares</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('home.stats.places')}</p>
             </div>
             <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{userStats.avg_rating || '-'}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Media</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('home.stats.average')}</p>
             </div>
             <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{userStats.total_photos}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Fotos</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t('home.stats.photos')}</p>
             </div>
           </div>
         )}
@@ -86,7 +88,7 @@ function HomePage() {
         <section>
           <div className="flex items-center space-x-2 mb-4">
             <FiTrendingUp className="w-5 h-5 text-primary-600" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Lugares mejor valorados</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t('home.topPlaces')}</h2>
           </div>
           <PlaceList places={topPlaces.slice(0, 6)} />
         </section>
@@ -94,8 +96,8 @@ function HomePage() {
 
       {/* Recent Reviews */}
       <section>
-        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Reviews recientes</h2>
-        <ReviewList reviews={recentReviews} emptyMessage="¡Aún no hay reviews. Crea la primera!" />
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">{t('home.recentReviews')}</h2>
+        <ReviewList reviews={recentReviews} emptyMessage={t('home.noReviews')} />
       </section>
     </div>
   );

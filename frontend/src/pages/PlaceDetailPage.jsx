@@ -6,11 +6,13 @@ import { useAuth } from '../hooks/useAuth';
 import StarRating from '../components/common/StarRating';
 import ReviewList from '../components/reviews/ReviewList';
 import PlaceForm from '../components/places/PlaceForm';
+import { useLanguage } from '../context/LanguageContext';
 
 function PlaceDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [place, setPlace] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -39,29 +41,29 @@ function PlaceDetailPage() {
       setPlace(updated);
       setEditing(false);
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al actualizar lugar');
+      alert(err.response?.data?.error || t('places.errorUpdate'));
     } finally {
       setEditLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`¿Eliminar "${place.name}" y todas sus reviews?`)) return;
+    if (!window.confirm(t('places.confirmDelete', { name: place.name }))) return;
     try {
       await placesAPI.delete(id);
       navigate('/places');
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al eliminar lugar');
+      alert(err.response?.data?.error || t('places.errorDelete'));
     }
   };
 
   const handleDeleteReview = async (reviewId) => {
-    if (!window.confirm('¿Eliminar esta review?')) return;
+    if (!window.confirm(t('reviewPage.confirmDelete'))) return;
     try {
       await reviewsAPI.delete(reviewId);
       setReviews(reviews.filter((r) => r.id !== reviewId));
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al eliminar review');
+      alert(err.response?.data?.error || t('reviewPage.errorDelete'));
     }
   };
 
@@ -74,7 +76,7 @@ function PlaceDetailPage() {
   }
 
   if (!place) {
-    return <div className="text-center py-12 text-gray-500 dark:text-gray-400">Lugar no encontrado</div>;
+    return <div className="text-center py-12 text-gray-500 dark:text-gray-400">{t('places.notFound')}</div>;
   }
 
   return (
@@ -106,14 +108,14 @@ function PlaceDetailPage() {
                     <span className="text-sm text-gray-500 dark:text-gray-400">({place.review_count} reviews)</span>
                   </>
                 ) : (
-                  <span className="text-gray-400 dark:text-gray-500">Sin valoraciones todavía</span>
+                  <span className="text-gray-400 dark:text-gray-500">{t('places.noRatingsYet')}</span>
                 )}
               </div>
             </div>
             <div className="flex flex-col items-end space-y-2">
               {place.category && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 capitalize">
-                  {place.category}
+                  {t(`categories.${place.category}`)}
                 </span>
               )}
               <Link
@@ -121,7 +123,7 @@ function PlaceDetailPage() {
                 className="flex items-center space-x-1 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm"
               >
                 <FiPlus className="w-4 h-4" />
-                <span>Escribir Review</span>
+                <span>{t('places.writeReview')}</span>
               </Link>
               {user?.is_admin && (
                 <div className="flex space-x-3">
@@ -130,14 +132,14 @@ function PlaceDetailPage() {
                     className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
                   >
                     <FiEdit2 className="w-3.5 h-3.5" />
-                    <span>Editar</span>
+                    <span>{t('places.edit')}</span>
                   </button>
                   <button
                     onClick={handleDelete}
                     className="flex items-center space-x-1 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400"
                   >
                     <FiTrash2 className="w-3.5 h-3.5" />
-                    <span>Eliminar</span>
+                    <span>{t('places.delete')}</span>
                   </button>
                 </div>
               )}
@@ -149,12 +151,12 @@ function PlaceDetailPage() {
       {/* Reviews */}
       <section>
         <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-          Reviews ({reviews.length})
+          {t('places.reviewsCount', { count: reviews.length })}
         </h2>
         <ReviewList
           reviews={reviews}
           showPlace={false}
-          emptyMessage="¡Sé el primero en escribir una review!"
+          emptyMessage={t('places.firstReview')}
           onDelete={user?.is_admin ? handleDeleteReview : undefined}
           currentUser={user}
         />

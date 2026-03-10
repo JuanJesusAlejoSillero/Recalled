@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { reviewsAPI } from '../services/api';
 import ReviewList from '../components/reviews/ReviewList';
+import { useLanguage } from '../context/LanguageContext';
 
 function MyReviewsPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,12 +26,12 @@ function MyReviewsPage() {
   }, [user]);
 
   const handleDelete = async (reviewId) => {
-    if (!window.confirm('¿Eliminar esta review?')) return;
+    if (!window.confirm(t('reviewPage.confirmDelete'))) return;
     try {
       await reviewsAPI.delete(reviewId);
       setReviews(reviews.filter((r) => r.id !== reviewId));
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al eliminar review');
+      alert(err.response?.data?.error || t('reviewPage.errorDelete'));
     }
   };
 
@@ -43,11 +45,11 @@ function MyReviewsPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Mis Reviews</h1>
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">{t('reviewPage.title')}</h1>
       <ReviewList
         reviews={reviews}
         onDelete={handleDelete}
-        emptyMessage="Aún no has escrito ninguna review."
+        emptyMessage={t('reviewPage.noReviews')}
         currentUser={user}
       />
     </div>

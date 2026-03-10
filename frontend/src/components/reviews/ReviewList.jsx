@@ -1,10 +1,14 @@
 import ReviewCard from './ReviewCard';
+import { useLanguage } from '../../context/LanguageContext';
 
-function ReviewList({ reviews, onDelete, showPlace = true, emptyMessage = 'No hay reviews todavía.', currentUser = null }) {
+function ReviewList({ reviews, onDelete, showPlace = true, emptyMessage, currentUser = null }) {
+  const { t } = useLanguage();
+  const message = emptyMessage || t('reviewPage.noReviews');
+
   if (!reviews?.length) {
     return (
       <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-        <p>{emptyMessage}</p>
+        <p>{message}</p>
       </div>
     );
   }

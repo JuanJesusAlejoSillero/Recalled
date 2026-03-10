@@ -1,10 +1,14 @@
 import PlaceCard from './PlaceCard';
+import { useLanguage } from '../../context/LanguageContext';
 
-function PlaceList({ places, emptyMessage = 'No hay lugares registrados.' }) {
+function PlaceList({ places, emptyMessage }) {
+  const { t } = useLanguage();
+  const message = emptyMessage || t('places.noPlaces');
+
   if (!places?.length) {
     return (
       <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-        <p>{emptyMessage}</p>
+        <p>{message}</p>
       </div>
     );
   }

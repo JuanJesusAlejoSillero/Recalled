@@ -3,8 +3,10 @@ import { useForm } from 'react-hook-form';
 import StarRating from '../common/StarRating';
 import ImageUploader from '../common/ImageUploader';
 import { placesAPI } from '../../services/api';
+import { useLanguage } from '../../context/LanguageContext';
 
 function ReviewForm({ onSubmit, initialData = null, loading = false }) {
+  const { t } = useLanguage();
   const [rating, setRating] = useState(initialData?.rating || 0);
   const [photos, setPhotos] = useState([]);
   const [places, setPlaces] = useState([]);
@@ -30,7 +32,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
 
   const handleFormSubmit = (data) => {
     if (rating === 0) {
-      setRatingError('Selecciona una puntuación');
+      setRatingError(t('reviewForm.ratingRequired'));
       return;
     }
     setRatingError('');
@@ -38,7 +40,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
 
     if (isNewPlace) {
       if (!newPlaceName.trim()) {
-        setPlaceError('Escribe el nombre del lugar');
+        setPlaceError(t('reviewForm.placeNameRequired'));
         return;
       }
       const { place_id: _, ...rest } = data;
@@ -48,7 +50,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
       );
     } else {
       if (!data.place_id) {
-        setPlaceError('Selecciona un lugar');
+        setPlaceError(t('reviewForm.selectPlaceRequired'));
         return;
       }
       onSubmit(
@@ -61,7 +63,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-6">
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lugar</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.place')}</label>
         <div className="flex items-center space-x-3 mb-2">
           <button
             type="button"
@@ -72,7 +74,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
-            Lugar existente
+            {t('reviewForm.existingPlace')}
           </button>
           <button
             type="button"
@@ -83,7 +85,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
             }`}
           >
-            Nuevo lugar
+            {t('reviewForm.newPlace')}
           </button>
         </div>
         {isNewPlace ? (
@@ -92,14 +94,14 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
             value={newPlaceName}
             onChange={(e) => setNewPlaceName(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            placeholder="Nombre del nuevo lugar"
+            placeholder={t('reviewForm.newPlacePlaceholder')}
           />
         ) : (
           <select
             {...register('place_id')}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            <option value="">Selecciona un lugar...</option>
+            <option value="">{t('reviewForm.selectPlace')}</option>
             {places.map((place) => (
               <option key={place.id} value={place.id}>{place.name}</option>
             ))}
@@ -109,34 +111,34 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Puntuación</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.rating')}</label>
         <StarRating rating={rating} onChange={setRating} size="lg" />
         {ratingError && <p className="text-red-500 text-xs mt-1">{ratingError}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Título</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.titleLabel')}</label>
         <input
           type="text"
-          {...register('title', { maxLength: { value: 200, message: 'Máximo 200 caracteres' } })}
+          {...register('title', { maxLength: { value: 200, message: t('reviewForm.titleMaxLength') } })}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          placeholder="Un título para tu review"
+          placeholder={t('reviewForm.titlePlaceholder')}
         />
         {errors.title && <p className="text-red-500 text-xs mt-1">{errors.title.message}</p>}
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Comentario</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.comment')}</label>
         <textarea
           {...register('comment')}
           rows={4}
           className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          placeholder="Cuenta tu experiencia..."
+          placeholder={t('reviewForm.commentPlaceholder')}
         />
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fecha de visita</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.visitDate')}</label>
         <input
           type="date"
           {...register('visit_date')}
@@ -145,7 +147,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fotos</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.photos')}</label>
         <ImageUploader onFilesSelected={setPhotos} maxFiles={5} />
       </div>
 
@@ -154,7 +156,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
         disabled={loading}
         className="w-full py-2.5 px-4 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
       >
-        {loading ? 'Guardando...' : initialData ? 'Actualizar Review' : 'Crear Review'}
+        {loading ? t('reviewForm.saving') : initialData ? t('reviewForm.update') : t('reviewForm.create')}
       </button>
     </form>
   );

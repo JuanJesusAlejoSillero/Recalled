@@ -4,7 +4,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: recalled-backend
+    container_name: recalled-backend-dev
     restart: unless-stopped
     environment:
       - FLASK_ENV=production
@@ -19,13 +19,13 @@ services:
       - "ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}"
       - "CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}"
     volumes:
-      - ./data:/app/data
-      - ./uploads:/app/uploads
-      - ./logs:/app/logs
+      - ./data-dev:/app/data
+      - ./uploads-dev:/app/uploads
+      - ./logs-dev:/app/logs
     expose:
       - "5000"
     networks:
-      - recalled-network
+      - recalled-network-dev
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health')"]
       interval: 30s
@@ -38,16 +38,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-    container_name: recalled-frontend
+    container_name: recalled-frontend-dev
     restart: unless-stopped
     environment:
       - VITE_API_URL=${VITE_API_URL:-/api/v1}
     ports:
-      - "127.0.0.1:${APP_PORT:-8090}:80"
+      - "${APP_DEV_PORT:-8091}:80"
     depends_on:
       - backend
     networks:
-      - recalled-network
+      - recalled-network-dev
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:80 || exit 1"]
       interval: 30s
@@ -55,5 +55,5 @@ services:
       retries: 3
 
 networks:
-  recalled-network:
+  recalled-network-dev:
     driver: bridge

@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import { FiUpload, FiX } from 'react-icons/fi';
+import { useLanguage } from '../../context/LanguageContext';
 
 function ImageUploader({ onFilesSelected, maxFiles = 5 }) {
+  const { t } = useLanguage();
   const [previews, setPreviews] = useState([]);
   const fileInputRef = useRef(null);
 
@@ -40,10 +42,10 @@ function ImageUploader({ onFilesSelected, maxFiles = 5 }) {
       >
         <FiUpload className="w-8 h-8 mx-auto text-gray-400 dark:text-gray-500 mb-2" />
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Arrastra fotos aquí o <span className="text-primary-600 dark:text-primary-400 font-medium">selecciona archivos</span>
+          {t('imageUploader.dragOrSelect')}<span className="text-primary-600 dark:text-primary-400 font-medium">{t('imageUploader.selectFiles')}</span>
         </p>
         <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-          JPG, PNG, WEBP - Max 5MB por foto ({previews.length}/{maxFiles})
+          {t('imageUploader.fileInfo', { count: previews.length, maxFiles })}
         </p>
         <input
           ref={fileInputRef}

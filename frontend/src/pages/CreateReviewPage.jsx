@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { reviewsAPI } from '../services/api';
 import ReviewForm from '../components/reviews/ReviewForm';
+import { useLanguage } from '../context/LanguageContext';
 
 function CreateReviewPage() {
   const { id } = useParams(); // for edit mode
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [initialData, setInitialData] = useState(null);
   const [pageLoading, setPageLoading] = useState(!!id);
@@ -54,7 +56,7 @@ function CreateReviewPage() {
         navigate('/my-reviews');
       }
     } catch (err) {
-      alert(err.response?.data?.error || 'Error al guardar review');
+      alert(err.response?.data?.error || t('reviewPage.errorSave'));
     } finally {
       setLoading(false);
     }
@@ -73,7 +75,7 @@ function CreateReviewPage() {
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
-        {id ? 'Editar Review' : 'Nueva Review'}
+        {id ? t('reviewPage.editTitle') : t('reviewPage.newTitle')}
       </h1>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <ReviewForm

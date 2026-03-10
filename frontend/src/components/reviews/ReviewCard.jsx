@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom';
 import { FiMapPin, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
 import { formatDate, truncate } from '../../utils/helpers';
+import { useLanguage } from '../../context/LanguageContext';
 
 function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) {
+  const { t, language } = useLanguage();
+  const locale = language === 'es' ? 'es-ES' : 'en-US';
   const [lightbox, setLightbox] = useState(null);
   const [expanded, setExpanded] = useState(false);
 
@@ -34,7 +37,7 @@ function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) 
           )}
           <div className="flex items-center space-x-3 mt-1">
             <StarRating rating={review.rating} readonly size="sm" />
-            <span className="text-xs text-gray-500 dark:text-gray-400">por {review.author}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{t('reviewCard.by')} {review.author}</span>
           </div>
         </div>
       </div>
@@ -49,7 +52,7 @@ function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) 
               onClick={() => setExpanded(!expanded)}
               className="text-primary-600 dark:text-primary-400 text-xs font-medium mt-1 hover:underline"
             >
-              {expanded ? 'Ver menos' : 'Ver más'}
+              {expanded ? t('reviewCard.showLess') : t('reviewCard.showMore')}
             </button>
           )}
         </div>
@@ -119,7 +122,7 @@ function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) 
 
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
         <span className="text-xs text-gray-400 dark:text-gray-500">
-          {review.visit_date ? `Visitado: ${formatDate(review.visit_date)}` : formatDate(review.created_at)}
+          {review.visit_date ? t('reviewCard.visited', { date: formatDate(review.visit_date, locale) }) : formatDate(review.created_at, locale)}
         </span>
         {onDelete && (isOwner || isAdmin) && (
           <div className="flex space-x-2">
@@ -128,14 +131,14 @@ function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) 
                 to={`/reviews/${review.id}/edit`}
                 className="text-xs text-primary-600 hover:text-primary-700 font-medium"
               >
-                Editar
+                {t('reviewCard.edit')}
               </Link>
             )}
             <button
               onClick={() => onDelete(review.id)}
               className="text-xs text-red-600 hover:text-red-700 font-medium"
             >
-              Eliminar
+              {t('reviewCard.delete')}
             </button>
           </div>
         )}

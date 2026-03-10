@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { FiMapPin } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
+import { useLanguage } from '../../context/LanguageContext';
 
 function PlaceCard({ place }) {
+  const { t } = useLanguage();
   return (
     <Link
       to={`/places/${place.id}`}
@@ -20,7 +22,7 @@ function PlaceCard({ place }) {
         </div>
         {place.category && (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 capitalize">
-            {place.category}
+            {t(`categories.${place.category}`)}
           </span>
         )}
       </div>
@@ -33,11 +35,11 @@ function PlaceCard({ place }) {
               <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">{place.avg_rating}</span>
             </>
           ) : (
-            <span className="text-sm text-gray-400 dark:text-gray-500">Sin valoraciones</span>
+            <span className="text-sm text-gray-400 dark:text-gray-500">{t('places.noRatings')}</span>
           )}
         </div>
         <span className="text-xs text-gray-400 dark:text-gray-500">
-          {place.review_count} {place.review_count === 1 ? 'review' : 'reviews'}
+          {place.review_count} {place.review_count === 1 ? t('places.review') : t('places.reviews')}
         </span>
       </div>
     </Link>
