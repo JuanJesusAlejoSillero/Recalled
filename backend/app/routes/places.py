@@ -7,17 +7,46 @@ from sqlalchemy import func
 from app import db
 from app.models.place import Place
 from app.models.review import Review
-from app.middleware.auth import admin_required
+from app.middleware.auth import admin_required, get_current_user
 from app.middleware.validators import validate_json
 from app.schemas.place_schema import PlaceCreateSchema
 
 places_bp = Blueprint("places", __name__)
 
 
+def _user_context():
+    """Return (current_user_id, is_admin) for the authenticated user."""
+    user = get_current_user()
+    if user:
+        return user.id, user.is_admin
+    return None, False
+
+
+def _visible_reviews_subquery(current_user_id, is_admin):
+    """Subquery that counts visible reviews per place for the given user."""
+    query = db.session.query(
+        Review.place_id,
+        func.count(Review.id).label("visible_count"),
+        func.avg(Review.rating).label("avg_r"),
+    )
+    if not is_admin:
+        if current_user_id:
+            query = query.filter(
+                db.or_(Review.is_private == False, Review.user_id == current_user_id)
+            )
+        else:
+            query = query.filter(Review.is_private == False)
+    return query.group_by(Review.place_id).subquery()
+
+
 @places_bp.route("", methods=["GET"])
 @jwt_required()
 def list_places():
-    """List all places with optional filters."""
+    """List all places with optional filters.
+
+    Only places that have at least one visible review for the current user
+    are returned.
+    """
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     per_page = min(per_page, 100)
@@ -26,7 +55,11 @@ def list_places():
     search = request.args.get("search")
     sort = request.args.get("sort", "name")  # name, rating, recent
 
-    query = Place.query
+    current_user_id, is_admin = _user_context()
+    vis_sub = _visible_reviews_subquery(current_user_id, is_admin)
+
+    # Inner join ensures only places with visible_count > 0 appear
+    query = Place.query.join(vis_sub, Place.id == vis_sub.c.place_id)
 
     if category:
         query = query.filter(Place.category == category)
@@ -35,19 +68,7 @@ def list_places():
         query = query.filter(Place.name.ilike(f"%{search}%"))
 
     if sort == "rating":
-        # Use a subquery to sort by average rating at DB level
-        avg_rating_sub = (
-            db.session.query(
-                Review.place_id,
-                func.avg(Review.rating).label("avg_r")
-            )
-            .group_by(Review.place_id)
-            .subquery()
-        )
-        query = (
-            query.outerjoin(avg_rating_sub, Place.id == avg_rating_sub.c.place_id)
-            .order_by(avg_rating_sub.c.avg_r.desc().nulls_last())
-        )
+        query = query.order_by(vis_sub.c.avg_r.desc().nulls_last())
     elif sort == "recent":
         query = query.order_by(Place.created_at.desc())
     else:
@@ -55,7 +76,10 @@ def list_places():
 
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
 
-    places = [p.to_dict() for p in pagination.items]
+    places = [
+        p.to_dict(current_user_id=current_user_id, is_admin=is_admin)
+        for p in pagination.items
+    ]
 
     return jsonify({
         "places": places,
@@ -71,7 +95,12 @@ def list_places():
 def get_place(place_id):
     """Get a specific place with its reviews."""
     place = Place.query.get_or_404(place_id, description="Place not found")
-    return jsonify(place.to_dict(include_reviews=True)), 200
+    current_user_id, is_admin = _user_context()
+    return jsonify(place.to_dict(
+        include_reviews=True,
+        current_user_id=current_user_id,
+        is_admin=is_admin,
+    )), 200
 
 
 @places_bp.route("", methods=["POST"])
@@ -116,14 +145,24 @@ def delete_place(place_id):
 @places_bp.route("/<int:place_id>/reviews", methods=["GET"])
 @jwt_required()
 def get_place_reviews(place_id):
-    """Get all reviews for a specific place."""
+    """Get all reviews for a specific place (privacy-aware)."""
     place = Place.query.get_or_404(place_id, description="Place not found")
+    current_user_id, is_admin = _user_context()
 
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     per_page = min(per_page, 100)
 
-    pagination = place.reviews.order_by(
+    query = Review.query.filter(Review.place_id == place_id)
+    if not is_admin:
+        if current_user_id:
+            query = query.filter(
+                db.or_(Review.is_private == False, Review.user_id == current_user_id)
+            )
+        else:
+            query = query.filter(Review.is_private == False)
+
+    pagination = query.order_by(
         Review.created_at.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)
 
@@ -132,5 +171,5 @@ def get_place_reviews(place_id):
         "total": pagination.total,
         "page": pagination.page,
         "pages": pagination.pages,
-        "place": place.to_dict(),
+        "place": place.to_dict(current_user_id=current_user_id, is_admin=is_admin),
     }), 200

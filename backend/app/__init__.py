@@ -67,4 +67,14 @@ def create_app():
     def revoked_token_callback(jwt_header, jwt_payload):
         return {"error": "Token has been revoked"}, 401
 
+    @jwt.token_verification_loader
+    def verify_token_claims(jwt_header, jwt_payload):
+        """Reject 2FA pending tokens from being used as regular tokens."""
+        return jwt_payload.get("purpose") != "2fa_pending"
+
+    @jwt.token_verification_failed_loader
+    def token_verification_failed(jwt_header, jwt_payload):
+        """Return error when token verification fails (e.g. 2FA pending token)."""
+        return {"error": "Token verification failed"}, 401
+
     return app

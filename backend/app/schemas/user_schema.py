@@ -63,3 +63,48 @@ class LoginSchema(Schema):
 
     username = fields.Str(required=True)
     password = fields.Str(required=True)
+
+
+class TotpCodeSchema(Schema):
+    """Schema for TOTP code verification during setup."""
+
+    totp_code = fields.Str(
+        required=True,
+        validate=validate.Regexp(r"^\d{6}$", error="Must be a 6-digit code"),
+    )
+
+
+class TotpVerifySchema(Schema):
+    """Schema for 2FA verification during login."""
+
+    temp_token = fields.Str(required=True)
+    totp_code = fields.Str(
+        required=True,
+        validate=validate.Regexp(r"^\d{6}$", error="Must be a 6-digit code"),
+    )
+
+
+class TotpDisableSchema(Schema):
+    """Schema for disabling 2FA."""
+
+    password = fields.Str(required=True)
+    totp_code = fields.Str(
+        required=True,
+        validate=validate.Regexp(r"^\d{6}$", error="Must be a 6-digit code"),
+    )
+
+
+class ChangePasswordSchema(Schema):
+    """Schema for changing password."""
+
+    current_password = fields.Str(required=True)
+    new_password = fields.Str(
+        required=True,
+        validate=validate.Length(min=8, max=128),
+    )
+
+
+class DeleteAccountSchema(Schema):
+    """Schema for account deletion confirmation."""
+
+    password = fields.Str(required=True)

@@ -58,7 +58,7 @@ function Navbar() {
                 <span className="hidden md:inline">{t('nav.admin')}</span>
               </Link>
             )}
-            <span className="text-sm text-gray-500 dark:text-gray-400 hidden md:inline">{user?.username}</span>
+            <Link to="/settings" className="text-sm text-gray-500 dark:text-gray-400 hidden md:inline hover:text-primary-600 dark:hover:text-primary-400" title={t('nav.settings')}>{user?.username}</Link>
             <button
               onClick={handleLogout}
               className="hidden md:flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-400 px-3 py-2 rounded-md text-sm font-medium"
@@ -102,7 +102,7 @@ function Navbar() {
 
             <div className="border-t border-gray-200 dark:border-gray-700 pt-2 mt-2">
               <div className="flex items-center justify-between px-3 py-2">
-                <span className="text-sm text-gray-500 dark:text-gray-400">{user?.username}</span>
+                <Link to="/settings" onClick={closeMobileMenu} className="text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400">{user?.username}</Link>
                 <button
                   onClick={() => { closeMobileMenu(); handleLogout(); }}
                   className="flex items-center space-x-1 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 text-sm font-medium"

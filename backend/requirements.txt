@@ -18,6 +18,8 @@ alembic==1.18.4
 # Autenticación y seguridad
 Flask-JWT-Extended==4.7.1
 bcrypt==5.0.0
+pyotp==2.9.0
+qrcode==8.2
 
 # CORS
 Flask-CORS==6.0.2

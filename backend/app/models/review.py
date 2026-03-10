@@ -23,6 +23,7 @@ class Review(db.Model):
     title = db.Column(db.String(200))
     comment = db.Column(db.Text)
     visit_date = db.Column(db.Date)
+    is_private = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(
         db.DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -52,6 +53,7 @@ class Review(db.Model):
             "title": self.title,
             "comment": self.comment,
             "visit_date": self.visit_date.isoformat() if self.visit_date else None,
+            "is_private": bool(self.is_private),
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "author": self.author.username if self.author else None,

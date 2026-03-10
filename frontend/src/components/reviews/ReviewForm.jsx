@@ -14,6 +14,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
   const [isNewPlace, setIsNewPlace] = useState(false);
   const [newPlaceName, setNewPlaceName] = useState('');
   const [placeError, setPlaceError] = useState('');
+  const [isPrivate, setIsPrivate] = useState(initialData?.is_private || false);
 
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
@@ -45,7 +46,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
       }
       const { place_id: _, ...rest } = data;
       onSubmit(
-        { ...rest, rating, visit_date: data.visit_date || null, place_name: newPlaceName.trim() },
+        { ...rest, rating, visit_date: data.visit_date || null, place_name: newPlaceName.trim(), is_private: isPrivate },
         photos
       );
     } else {
@@ -54,7 +55,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
         return;
       }
       onSubmit(
-        { ...data, rating, place_id: parseInt(data.place_id), visit_date: data.visit_date || null },
+        { ...data, rating, place_id: parseInt(data.place_id), visit_date: data.visit_date || null, is_private: isPrivate },
         photos
       );
     }
@@ -149,6 +150,19 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.photos')}</label>
         <ImageUploader onFilesSelected={setPhotos} maxFiles={5} />
+      </div>
+
+      <div className="flex items-center space-x-3">
+        <input
+          type="checkbox"
+          id="is_private"
+          checked={isPrivate}
+          onChange={(e) => setIsPrivate(e.target.checked)}
+          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 rounded"
+        />
+        <label htmlFor="is_private" className="text-sm text-gray-700 dark:text-gray-300">
+          {t('reviewForm.private')}
+        </label>
       </div>
 
       <button

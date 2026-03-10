@@ -15,6 +15,7 @@ class ReviewSchema(Schema):
     title = fields.Str(allow_none=True, validate=validate.Length(max=200))
     comment = fields.Str(allow_none=True)
     visit_date = fields.Date(allow_none=True)
+    is_private = fields.Bool(dump_default=False)
     created_at = fields.DateTime(dump_only=True)
     updated_at = fields.DateTime(dump_only=True)
     author = fields.Str(dump_only=True)
@@ -31,6 +32,7 @@ class ReviewCreateSchema(Schema):
     title = fields.Str(allow_none=True, load_default=None, validate=validate.Length(max=200))
     comment = fields.Str(allow_none=True, load_default=None)
     visit_date = fields.Date(allow_none=True, load_default=None)
+    is_private = fields.Bool(load_default=False)
 
     @pre_load
     def sanitize(self, data, **kwargs):
@@ -51,6 +53,7 @@ class ReviewUpdateSchema(Schema):
     title = fields.Str(allow_none=True, validate=validate.Length(max=200))
     comment = fields.Str(allow_none=True)
     visit_date = fields.Date(allow_none=True)
+    is_private = fields.Bool()
 
     @pre_load
     def sanitize(self, data, **kwargs):

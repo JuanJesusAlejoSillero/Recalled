@@ -9,6 +9,7 @@ import PlaceDetailPage from './pages/PlaceDetailPage';
 import MyReviewsPage from './pages/MyReviewsPage';
 import CreateReviewPage from './pages/CreateReviewPage';
 import AdminPage from './pages/AdminPage';
+import SettingsPage from './pages/SettingsPage';
 
 function App() {
   const { user, loading } = useAuth();
@@ -33,6 +34,7 @@ function App() {
           <Route path="/my-reviews" element={<ProtectedRoute><MyReviewsPage /></ProtectedRoute>} />
           <Route path="/reviews/new" element={<ProtectedRoute><CreateReviewPage /></ProtectedRoute>} />
           <Route path="/reviews/:id/edit" element={<ProtectedRoute><CreateReviewPage /></ProtectedRoute>} />
+          <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
           <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

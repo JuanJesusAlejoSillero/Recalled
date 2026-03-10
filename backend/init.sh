@@ -29,6 +29,31 @@ app = create_app()
 with app.app_context():
     # Crear todas las tablas (no hace nada si ya existen)
     db.create_all()
+
+    # Add TOTP columns to existing databases
+    import sqlalchemy
+    inspector = sqlalchemy.inspect(db.engine)
+    columns = [col["name"] for col in inspector.get_columns("users")]
+    if "totp_secret" not in columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE users ADD COLUMN totp_secret VARCHAR(32)"
+            ))
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE users ADD COLUMN totp_enabled BOOLEAN NOT NULL DEFAULT 0"
+            ))
+            conn.commit()
+        print("✓ TOTP columns added to users table")
+    
+    # Add is_private column to reviews table
+    review_columns = [col["name"] for col in inspector.get_columns("reviews")]
+    if "is_private" not in review_columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE reviews ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT 0"
+            ))
+            conn.commit()
+        print("✓ is_private column added to reviews table")
     print("✓ Base de datos verificada")
 
     # Crear usuario administrador si no existe

@@ -68,6 +68,7 @@ def top_places():
             func.count(Review.id).label("review_count"),
         )
         .join(Review, Place.id == Review.place_id)
+        .filter(Review.is_private == False)
         .group_by(Place.id)
         .having(func.count(Review.id) >= 1)
         .order_by(func.avg(Review.rating).desc())

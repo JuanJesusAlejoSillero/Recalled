@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiMapPin, FiX, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
+import { FiMapPin, FiX, FiChevronLeft, FiChevronRight, FiLock } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
 import { formatDate, truncate } from '../../utils/helpers';
 import { useLanguage } from '../../context/LanguageContext';
@@ -38,6 +38,12 @@ function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) 
           <div className="flex items-center space-x-3 mt-1">
             <StarRating rating={review.rating} readonly size="sm" />
             <span className="text-xs text-gray-500 dark:text-gray-400">{t('reviewCard.by')} {review.author}</span>
+            {review.is_private && (
+              <span className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400">
+                <FiLock className="w-3 h-3" />
+                <span>{t('reviewCard.private')}</span>
+              </span>
+            )}
           </div>
         </div>
       </div>

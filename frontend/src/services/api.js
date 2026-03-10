@@ -57,6 +57,12 @@ api.interceptors.response.use(
 // --- Auth ---
 export const authAPI = {
   login: (credentials) => api.post('/auth/login', credentials),
+  verify2FA: (data) => api.post('/auth/2fa/verify', data),
+  setup2FA: () => api.post('/auth/2fa/setup'),
+  confirmSetup2FA: (data) => api.post('/auth/2fa/confirm-setup', data),
+  disable2FA: (data) => api.post('/auth/2fa/disable', data),
+  changePassword: (data) => api.post('/auth/change-password', data),
+  deleteAccount: (data) => api.post('/auth/delete-account', data),
   me: () => api.get('/auth/me'),
   logout: () => api.post('/auth/logout'),
 };

@@ -27,6 +27,17 @@ const useAuthStore = create((set, get) => ({
 
   login: async (username, password) => {
     const { data } = await authAPI.login({ username, password });
+    if (data['2fa_required']) {
+      return { twoFactorRequired: true, tempToken: data.temp_token };
+    }
+    localStorage.setItem('access_token', data.access_token);
+    localStorage.setItem('refresh_token', data.refresh_token);
+    set({ user: data.user });
+    return { user: data.user };
+  },
+
+  verify2FA: async (tempToken, totpCode) => {
+    const { data } = await authAPI.verify2FA({ temp_token: tempToken, totp_code: totpCode });
     localStorage.setItem('access_token', data.access_token);
     localStorage.setItem('refresh_token', data.refresh_token);
     set({ user: data.user });

@@ -26,6 +26,10 @@ class User(db.Model):
         onupdate=lambda: datetime.now(timezone.utc),
     )
 
+    # 2FA (TOTP)
+    totp_secret = db.Column(db.String(32), nullable=True)
+    totp_enabled = db.Column(db.Boolean, default=False, nullable=False)
+
     # Relationships
     reviews = db.relationship(
         "Review", backref="author", lazy="dynamic", cascade="all, delete-orphan"
@@ -52,6 +56,7 @@ class User(db.Model):
             "id": self.id,
             "username": self.username,
             "is_admin": self.is_admin,
+            "totp_enabled": bool(self.totp_enabled),
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
         if include_email:

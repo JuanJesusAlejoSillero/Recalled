@@ -26,12 +26,22 @@ def list_reviews():
     user_id = request.args.get("user_id", type=int)
     place_id = request.args.get("place_id", type=int)
 
+    current_user = get_current_user()
     query = Review.query
 
     if user_id:
         query = query.filter(Review.user_id == user_id)
     if place_id:
         query = query.filter(Review.place_id == place_id)
+
+    # Hide private reviews from other users (owner and admin can see them)
+    if current_user:
+        if not current_user.is_admin:
+            query = query.filter(
+                db.or_(Review.is_private == False, Review.user_id == current_user.id)
+            )
+    else:
+        query = query.filter(Review.is_private == False)
 
     pagination = query.order_by(Review.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
@@ -51,6 +61,13 @@ def list_reviews():
 def get_review(review_id):
     """Get a specific review."""
     review = Review.query.get_or_404(review_id, description="Review not found")
+
+    # Private reviews only visible to owner or admin
+    if review.is_private:
+        current_user = get_current_user()
+        if not current_user or (review.user_id != current_user.id and not current_user.is_admin):
+            return jsonify({"error": "Review not found"}), 404
+
     return jsonify(review.to_dict()), 200
 
 
@@ -89,6 +106,7 @@ def create_review(validated_data):
         title=validated_data.get("title"),
         comment=validated_data.get("comment"),
         visit_date=validated_data.get("visit_date"),
+        is_private=validated_data.get("is_private", False),
     )
 
     db.session.add(review)

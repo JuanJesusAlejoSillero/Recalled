@@ -7,6 +7,7 @@ A self-hosted web application to keep track of places you've visited and write r
 ## Features
 
 - **Authentication** - JWT-based login with access and refresh tokens
+- **Two-factor authentication (2FA)** - TOTP-based with QR code and manual secret key
 - **Places** - Create, search, filter by category, and sort by rating
 - **Reviews** - Write reviews with 1-5 star ratings, titles, comments, and visit dates
 - **Photos** - Upload up to 5 photos per review with automatic thumbnail generation
