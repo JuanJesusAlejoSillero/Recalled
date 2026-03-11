@@ -44,6 +44,15 @@ def create_app():
     def health():
         return {"status": "ok"}, 200
 
+    # App version endpoint (version baked into /app/VERSION at image build time)
+    @app.route("/api/v1/version")
+    def version():
+        try:
+            with open("/app/VERSION") as f:
+                return {"version": f.read().strip()}, 200
+        except OSError:
+            return {"version": "dev"}, 200
+
     # Serve uploaded files
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):

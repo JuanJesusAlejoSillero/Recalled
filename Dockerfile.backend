@@ -15,8 +15,14 @@ COPY backend/requirements.txt .
 # Instalar dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
+# App version (injected at build time by CI/CD, not overridable at runtime)
+ARG APP_VERSION=dev
+
 # Copiar código de la aplicación
 COPY backend/ .
+
+# Write version to a file inside the image
+RUN echo "$APP_VERSION" > /app/VERSION
 
 # Crear directorios necesarios
 RUN mkdir -p /app/data /app/uploads/photos /app/logs

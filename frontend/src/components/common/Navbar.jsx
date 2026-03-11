@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../context/LanguageContext';
 import ThemeToggle from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
+import VersionBadge from './VersionBadge';
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -50,6 +51,7 @@ function Navbar() {
           </div>
 
           <div className="flex items-center space-x-4">
+            <VersionBadge />
             <LanguageToggle />
             <ThemeToggle />
             {user?.is_admin && (

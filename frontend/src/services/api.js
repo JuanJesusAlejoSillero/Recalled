@@ -67,6 +67,11 @@ export const authAPI = {
   logout: () => api.post('/auth/logout'),
 };
 
+// --- Version ---
+export const versionAPI = {
+  get: () => api.get('/version'),
+};
+
 // --- Users ---
 export const usersAPI = {
   list: (params) => api.get('/users', { params }),
