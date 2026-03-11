@@ -13,7 +13,7 @@ function VersionBadge() {
   if (!version || version === 'dev') return null;
 
   return (
-    <span className="text-xs text-gray-400 dark:text-gray-500 hidden md:inline" title={`v${version}`}>
+    <span className="text-xs text-gray-400 dark:text-gray-500" title={`v${version}`}>
       v{version}
     </span>
   );
