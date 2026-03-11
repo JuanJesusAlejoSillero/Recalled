@@ -10,9 +10,12 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Two-factor authentication (2FA)** - TOTP-based with QR code and manual secret key
 - **Places** - Create, search, filter by category, and sort by rating
 - **Reviews** - Write reviews with 1-5 star ratings, titles, comments, and visit dates
+- **Private reviews** - Mark reviews as private so only you can see them
 - **Photos** - Upload up to 5 photos per review with automatic thumbnail generation
 - **Admin panel** - User management and general statistics
 - **Personal dashboard** - Your stats, recent reviews, and top-rated places
+- **Settings** - Change username, password, enable/disable 2FA, and delete account
+- **Version badge** - Displays app version in navbar (baked at Docker build time)
 - **Dark mode** - Toggle between light and dark themes
 - **Multi-language** - Spanish and English with automatic browser detection
 - **Responsive** - Mobile-friendly with hamburger menu navigation
@@ -98,7 +101,7 @@ Recalled/
 │   └── init.sh              # DB init + admin creation script
 ├── frontend/
 │   ├── src/
-│   │   ├── components/      # UI components (auth, admin, places, reviews, common)
+│   │   ├── components/      # UI components (auth, admin, places, reviews, settings, common)
 │   │   ├── pages/           # Route pages
 │   │   ├── services/        # Axios API client
 │   │   ├── context/         # Zustand auth store, theme context, language context
@@ -182,6 +185,7 @@ To expose Recalled with a custom domain and HTTPS, place a reverse proxy in fron
 | **Photos**  | `POST /api/v1/reviews/:id/photos`, `DELETE /api/v1/reviews/:id/photos/:photoId`                                                   |
 | **Stats**   | `GET /api/v1/stats/user/:id`, `GET /api/v1/stats/places`                                                                          |
 | **Health**  | `GET /api/v1/health`                                                                                                              |
+| **Version** | `GET /api/v1/version`                                                                                                             |
 
 ## Contributing
 

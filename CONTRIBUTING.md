@@ -23,11 +23,10 @@ Thanks for your interest in contributing! Here's how you can help.
 ```bash
 cp .env.example .env
 # Fill in the required variables
-docker compose build
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d --build
 ```
 
-The app will be available at `http://localhost:8090`.
+The app will be available at `http://localhost:8091` (dev stack port).
 
 ### Running backend tests
 
