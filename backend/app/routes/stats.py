@@ -60,7 +60,19 @@ def user_stats(user_id):
 @stats_bp.route("/places", methods=["GET"])
 @jwt_required()
 def top_places():
-    """Get top-rated places."""
+    """Get top-rated places (visible reviews only)."""
+    from app.middleware.auth import get_current_user
+
+    current_user = get_current_user()
+    current_user_id = current_user.id if current_user else None
+    is_admin = current_user.is_admin if current_user else False
+
+    review_filter = Review.is_private == False
+    if not is_admin and current_user_id:
+        review_filter = db.or_(
+            Review.is_private == False, Review.user_id == current_user_id
+        )
+
     results = (
         db.session.query(
             Place,
@@ -68,7 +80,7 @@ def top_places():
             func.count(Review.id).label("review_count"),
         )
         .join(Review, Place.id == Review.place_id)
-        .filter(Review.is_private == False)
+        .filter(review_filter)
         .group_by(Place.id)
         .having(func.count(Review.id) >= 1)
         .order_by(func.avg(Review.rating).desc())
@@ -78,7 +90,9 @@ def top_places():
 
     places = []
     for place, avg_rating, review_count in results:
-        data = place.to_dict()
+        data = place.to_dict(
+            current_user_id=current_user_id, is_admin=is_admin
+        )
         data["avg_rating"] = round(float(avg_rating), 1) if avg_rating else None
         data["review_count"] = review_count
         places.append(data)

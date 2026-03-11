@@ -14,7 +14,6 @@ services:
       - ALLOWED_EXTENSIONS=jpg,jpeg,png,webp
       - "ADMIN_USERNAME=${ADMIN_USERNAME:-admin}"
       - "ADMIN_PASSWORD=${ADMIN_PASSWORD:?ERROR: ADMIN_PASSWORD is required. Set a strong password in .env}"
-      - "ADMIN_EMAIL=${ADMIN_EMAIL:-admin@example.com}"
       - "CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}"
     volumes:
       - ./data:/app/data

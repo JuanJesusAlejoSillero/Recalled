@@ -47,7 +47,6 @@ class Config:
     # Admin
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD")
-    ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "admin@example.com")
 
     # Image processing
     MAX_IMAGE_WIDTH = 1920

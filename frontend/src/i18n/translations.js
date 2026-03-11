@@ -176,7 +176,6 @@ const translations = {
       cancel: 'Cancelar',
       loadingUsers: 'Cargando usuarios...',
       tableUser: 'Usuario',
-      tableEmail: 'Email',
       tableRole: 'Rol',
       tableCreated: 'Creado',
       tableActions: 'Acciones',
@@ -191,7 +190,6 @@ const translations = {
     createUser: {
       title: 'Crear Nuevo Usuario',
       username: 'Usuario',
-      email: 'Email',
       password: 'Contraseña',
       isAdmin: 'Es administrador',
       required: 'Obligatorio',
@@ -226,9 +224,8 @@ const translations = {
       title: 'Ajustes',
       profile: {
         title: 'Perfil',
-        description: 'Cambia tu nombre de usuario o email.',
+        description: 'Cambia tu nombre de usuario.',
         username: 'Nombre de usuario',
-        email: 'Email',
         save: 'Guardar cambios',
         saving: 'Guardando...',
         success: 'Perfil actualizado correctamente',
@@ -450,7 +447,6 @@ const translations = {
       cancel: 'Cancel',
       loadingUsers: 'Loading users...',
       tableUser: 'User',
-      tableEmail: 'Email',
       tableRole: 'Role',
       tableCreated: 'Created',
       tableActions: 'Actions',
@@ -464,7 +460,6 @@ const translations = {
     createUser: {
       title: 'Create New User',
       username: 'Username',
-      email: 'Email',
       password: 'Password',
       isAdmin: 'Is administrator',
       required: 'Required',
@@ -495,9 +490,8 @@ const translations = {
       title: 'Settings',
       profile: {
         title: 'Profile',
-        description: 'Change your username or email.',
+        description: 'Change your username.',
         username: 'Username',
-        email: 'Email',
         save: 'Save changes',
         saving: 'Saving...',
         success: 'Profile updated successfully',

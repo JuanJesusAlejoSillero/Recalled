@@ -93,14 +93,26 @@ def list_places():
 @places_bp.route("/<int:place_id>", methods=["GET"])
 @jwt_required()
 def get_place(place_id):
-    """Get a specific place with its reviews."""
+    """Get a specific place with its reviews.
+
+    Returns 404 if the place has no reviews visible to the current user,
+    preventing information leakage about places with only others' private
+    reviews.
+    """
     place = Place.query.get_or_404(place_id, description="Place not found")
     current_user_id, is_admin = _user_context()
-    return jsonify(place.to_dict(
+
+    data = place.to_dict(
         include_reviews=True,
         current_user_id=current_user_id,
         is_admin=is_admin,
-    )), 200
+    )
+
+    # Hide places that only have private reviews from other users
+    if not is_admin and data["review_count"] == 0:
+        return jsonify({"error": "Place not found"}), 404
+
+    return jsonify(data), 200
 
 
 @places_bp.route("", methods=["POST"])
@@ -148,6 +160,17 @@ def get_place_reviews(place_id):
     """Get all reviews for a specific place (privacy-aware)."""
     place = Place.query.get_or_404(place_id, description="Place not found")
     current_user_id, is_admin = _user_context()
+
+    # Hide places that only have private reviews from other users
+    if not is_admin:
+        vis_sub = _visible_reviews_subquery(current_user_id, is_admin)
+        has_visible = (
+            db.session.query(vis_sub.c.visible_count)
+            .filter(vis_sub.c.place_id == place_id)
+            .scalar()
+        )
+        if not has_visible:
+            return jsonify({"error": "Place not found"}), 404
 
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)

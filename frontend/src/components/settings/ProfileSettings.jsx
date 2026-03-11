@@ -8,7 +8,6 @@ function ProfileSettings() {
   const { user, updateUser } = useAuth();
   const { t } = useLanguage();
   const [username, setUsername] = useState(user?.username || '');
-  const [email, setEmail] = useState(user?.email || '');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -20,7 +19,6 @@ function ProfileSettings() {
 
     const updates = {};
     if (username !== user.username) updates.username = username;
-    if (email !== user.email) updates.email = email;
 
     if (Object.keys(updates).length === 0) return;
 
@@ -36,7 +34,7 @@ function ProfileSettings() {
     }
   };
 
-  const hasChanges = username !== user?.username || email !== user?.email;
+  const hasChanges = username !== user?.username;
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -73,18 +71,6 @@ function ProfileSettings() {
             minLength={3}
             maxLength={50}
             pattern="^[a-zA-Z0-9_]+$"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {t('settings.profile.email')}
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
             required
           />
         </div>

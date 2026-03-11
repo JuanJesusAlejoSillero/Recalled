@@ -16,9 +16,11 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
   const [placeError, setPlaceError] = useState('');
   const [isPrivate, setIsPrivate] = useState(initialData?.is_private || false);
 
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const preselectedPlaceId = initialData?.place_id ? String(initialData.place_id) : '';
+
+  const { register, handleSubmit, setValue, formState: { errors } } = useForm({
     defaultValues: {
-      place_id: initialData?.place_id ? String(initialData.place_id) : '',
+      place_id: preselectedPlaceId,
       title: initialData?.title || '',
       comment: initialData?.comment || '',
       visit_date: initialData?.visit_date || '',
@@ -26,10 +28,17 @@ function ReviewForm({ onSubmit, initialData = null, loading = false }) {
   });
 
   useEffect(() => {
-    placesAPI.list({ per_page: 100 }).then(({ data }) => {
+    placesAPI.list({ per_page: 100, sort: 'name' }).then(({ data }) => {
       setPlaces(data.places || []);
     });
   }, []);
+
+  // Apply preselected place_id AFTER places have been rendered as <option>s
+  useEffect(() => {
+    if (places.length > 0 && preselectedPlaceId) {
+      setValue('place_id', preselectedPlaceId);
+    }
+  }, [places, preselectedPlaceId, setValue]);
 
   const handleFormSubmit = (data) => {
     if (rating === 0) {

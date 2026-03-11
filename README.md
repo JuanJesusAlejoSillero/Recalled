@@ -76,7 +76,6 @@ All configuration is done through the `.env` file. See [.env.example](.env.examp
 | `APP_DEV_PORT`       | `8091`              | Port for the dev stack (`docker-compose.dev.yml`)    |
 | `IMAGE_TAG`          | `latest`            | Docker image tag (e.g. `1.0.0`)                      |
 | `ADMIN_USERNAME`     | `admin`             | Admin username                                       |
-| `ADMIN_EMAIL`        | `admin@example.com` | Admin email                                          |
 | `CORS_ORIGINS`       | `http://localhost`  | Allowed CORS origins (comma-separated)               |
 | `MAX_CONTENT_LENGTH` | `5242880`           | Max upload size in bytes (5 MB)                      |
 | `ALLOWED_EXTENSIONS` | `jpg,jpeg,png,webp` | Allowed file extensions for uploads                  |

@@ -54,11 +54,42 @@ with app.app_context():
             ))
             conn.commit()
         print("✓ is_private column added to reviews table")
+
+    # Drop email column from users table (no longer used)
+    user_columns = [col["name"] for col in inspector.get_columns("users")]
+    if "email" in user_columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE users RENAME TO users_old"
+            ))
+            conn.execute(sqlalchemy.text(
+                "CREATE TABLE users ("
+                "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "username VARCHAR(50) NOT NULL UNIQUE, "
+                "password_hash VARCHAR(255) NOT NULL, "
+                "is_admin BOOLEAN DEFAULT 0, "
+                "created_at DATETIME, "
+                "updated_at DATETIME, "
+                "totp_secret VARCHAR(32), "
+                "totp_enabled BOOLEAN NOT NULL DEFAULT 0)"
+            ))
+            conn.execute(sqlalchemy.text(
+                "INSERT INTO users (id, username, password_hash, is_admin, created_at, updated_at, totp_secret, totp_enabled) "
+                "SELECT id, username, password_hash, is_admin, created_at, updated_at, totp_secret, totp_enabled FROM users_old"
+            ))
+            conn.execute(sqlalchemy.text(
+                "DROP TABLE users_old"
+            ))
+            conn.execute(sqlalchemy.text(
+                "CREATE UNIQUE INDEX ix_users_username ON users (username)"
+            ))
+            conn.commit()
+        print("✓ email column removed from users table")
+
     print("✓ Base de datos verificada")
 
     # Crear usuario administrador si no existe
     admin_username = os.getenv('ADMIN_USERNAME', 'admin')
-    admin_email = os.getenv('ADMIN_EMAIL', 'admin@example.com')
     admin_password = os.getenv('ADMIN_PASSWORD')
     if not admin_password:
         print('ERROR: ADMIN_PASSWORD environment variable is required')
@@ -68,14 +99,12 @@ with app.app_context():
     if not existing_admin:
         admin = User(
             username=admin_username,
-            email=admin_email,
             is_admin=True
         )
         admin.set_password(admin_password)
         db.session.add(admin)
         db.session.commit()
         print(f"✓ Usuario administrador creado: {admin_username}")
-        print(f"  Email: {admin_email}")
         print(f"  IMPORTANTE: Cambiar la contraseña después del primer login")
     else:
         print(f"✓ Usuario administrador ya existe: {admin_username}")

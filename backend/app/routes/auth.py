@@ -53,7 +53,7 @@ def login(validated_data):
     return jsonify({
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "user": user.to_dict(include_email=True),
+        "user": user.to_dict(),
     }), 200
 
 
@@ -74,7 +74,7 @@ def me():
     user = db.session.get(User, int(user_id))
     if not user:
         return jsonify({"error": "User not found"}), 404
-    return jsonify(user.to_dict(include_email=True)), 200
+    return jsonify(user.to_dict()), 200
 
 
 @auth_bp.route("/logout", methods=["POST"])
@@ -148,7 +148,7 @@ def confirm_2fa_setup(validated_data):
 
     return jsonify({
         "message": "2FA enabled successfully",
-        "user": user.to_dict(include_email=True),
+        "user": user.to_dict(),
     }), 200
 
 
@@ -178,7 +178,7 @@ def disable_2fa(validated_data):
 
     return jsonify({
         "message": "2FA disabled successfully",
-        "user": user.to_dict(include_email=True),
+        "user": user.to_dict(),
     }), 200
 
 
@@ -208,7 +208,7 @@ def verify_2fa(validated_data):
     return jsonify({
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "user": user.to_dict(include_email=True),
+        "user": user.to_dict(),
     }), 200
 
 

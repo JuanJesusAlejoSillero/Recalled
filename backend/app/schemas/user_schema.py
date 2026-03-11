@@ -10,7 +10,6 @@ class UserSchema(Schema):
 
     id = fields.Int(dump_only=True)
     username = fields.Str(required=True, validate=validate.Length(min=3, max=50))
-    email = fields.Email(required=True)
     is_admin = fields.Bool(dump_only=True)
     created_at = fields.DateTime(dump_only=True)
 
@@ -25,7 +24,6 @@ class UserCreateSchema(Schema):
             error="Username must contain only letters, numbers and underscores",
         )],
     )
-    email = fields.Email(required=True)
     password = fields.Str(
         required=True,
         validate=validate.Length(min=8, max=128),
@@ -47,7 +45,6 @@ class UserUpdateSchema(Schema):
             error="Username must contain only letters, numbers and underscores",
         )],
     )
-    email = fields.Email()
     password = fields.Str(validate=validate.Length(min=8, max=128))
     is_admin = fields.Bool()
 

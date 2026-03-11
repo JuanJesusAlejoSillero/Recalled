@@ -25,7 +25,7 @@ def list_users():
     )
 
     return jsonify({
-        "users": [u.to_dict(include_email=True) for u in pagination.items],
+        "users": [u.to_dict() for u in pagination.items],
         "total": pagination.total,
         "page": pagination.page,
         "pages": pagination.pages,
@@ -43,9 +43,7 @@ def get_user(user_id):
 
     user = User.query.get_or_404(user_id, description="User not found")
 
-    # Only admin or the user themselves can see full details
-    include_email = current_user.is_admin or current_user.id == user_id
-    return jsonify(user.to_dict(include_email=include_email)), 200
+    return jsonify(user.to_dict()), 200
 
 
 @users_bp.route("", methods=["POST"])
@@ -53,16 +51,12 @@ def get_user(user_id):
 @validate_json(UserCreateSchema)
 def create_user(validated_data):
     """Create a new user (admin only)."""
-    # Check for existing username/email
+    # Check for existing username
     if User.query.filter_by(username=validated_data["username"]).first():
         return jsonify({"error": "Username already exists"}), 409
 
-    if User.query.filter_by(email=validated_data["email"]).first():
-        return jsonify({"error": "Email already exists"}), 409
-
     user = User(
         username=validated_data["username"],
-        email=validated_data["email"],
         is_admin=validated_data.get("is_admin", False),
     )
     user.set_password(validated_data["password"])
@@ -70,7 +64,7 @@ def create_user(validated_data):
     db.session.add(user)
     db.session.commit()
 
-    return jsonify(user.to_dict(include_email=True)), 201
+    return jsonify(user.to_dict()), 201
 
 
 @users_bp.route("/<int:user_id>", methods=["PUT"])
@@ -92,20 +86,14 @@ def update_user(user_id, validated_data):
     if "is_admin" in validated_data and not current_user.is_admin:
         return jsonify({"error": "Only admins can change admin status"}), 403
 
-    # Check for duplicate username/email
+    # Check for duplicate username
     if "username" in validated_data and validated_data["username"] != user.username:
         if User.query.filter_by(username=validated_data["username"]).first():
             return jsonify({"error": "Username already exists"}), 409
 
-    if "email" in validated_data and validated_data["email"] != user.email:
-        if User.query.filter_by(email=validated_data["email"]).first():
-            return jsonify({"error": "Email already exists"}), 409
-
     # Apply updates
     if "username" in validated_data:
         user.username = validated_data["username"]
-    if "email" in validated_data:
-        user.email = validated_data["email"]
     if "password" in validated_data:
         user.set_password(validated_data["password"])
     if "is_admin" in validated_data:
@@ -113,7 +101,7 @@ def update_user(user_id, validated_data):
 
     db.session.commit()
 
-    return jsonify(user.to_dict(include_email=True)), 200
+    return jsonify(user.to_dict()), 200
 
 
 @users_bp.route("/<int:user_id>", methods=["DELETE"])
