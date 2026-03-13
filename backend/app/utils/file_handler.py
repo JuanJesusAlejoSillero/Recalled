@@ -6,6 +6,28 @@ import uuid
 from flask import current_app
 from PIL import Image
 
+# Limit decompression to prevent image bombs (~50 MP, ~200 MB RAM worst case)
+Image.MAX_IMAGE_PIXELS = 50_000_000
+
+# Expected magic bytes for each allowed image format
+_MAGIC_BYTES = {
+    "jpg": [b"\xff\xd8\xff"],
+    "jpeg": [b"\xff\xd8\xff"],
+    "png": [b"\x89PNG\r\n\x1a\n"],
+    "webp": [b"RIFF"],
+}
+
+
+def _validate_magic_bytes(stream, ext: str) -> None:
+    """Validate that the file starts with expected magic bytes for its extension."""
+    signatures = _MAGIC_BYTES.get(ext)
+    if not signatures:
+        raise ValueError(f"No known signature for extension: {ext}")
+    header = stream.read(12)
+    stream.seek(0)
+    if not any(header.startswith(sig) for sig in signatures):
+        raise ValueError("File content does not match its extension")
+
 
 def allowed_file(filename: str) -> bool:
     """Check if the file extension is allowed."""
@@ -38,6 +60,9 @@ def save_photo(file) -> dict:
     ext = file.filename.rsplit(".", 1)[1].lower()
     unique_filename = f"{uuid.uuid4().hex}.{ext}"
 
+    # Validate magic bytes match the declared extension
+    _validate_magic_bytes(file.stream, ext)
+
     # Ensure upload directory exists
     photos_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], "photos")
     thumbs_dir = os.path.join(photos_dir, "thumbnails")
@@ -46,7 +71,7 @@ def save_photo(file) -> dict:
 
     filepath = os.path.join(photos_dir, unique_filename)
 
-    # Save and process image
+    # Save and process image (MAX_IMAGE_PIXELS guards against decompression bombs)
     img = Image.open(file.stream)
 
     # Convert RGBA to RGB if necessary (for JPEG)

@@ -4,6 +4,7 @@ import base64
 import io
 from datetime import timedelta
 
+import bcrypt
 import pyotp
 import qrcode
 from flask import Blueprint, jsonify
@@ -29,6 +30,11 @@ from app.schemas.user_schema import (
 
 auth_bp = Blueprint("auth", __name__)
 
+# Pre-computed hash used when the user does not exist, so that the response time
+# is indistinguishable from a real password check (prevents user enumeration via
+# timing attacks).
+_DUMMY_HASH = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=12)).decode("utf-8")
+
 
 @auth_bp.route("/login", methods=["POST"])
 @validate_json(LoginSchema)
@@ -36,7 +42,12 @@ def login(validated_data):
     """Authenticate a user and return JWT tokens."""
     user = User.query.filter_by(username=validated_data["username"]).first()
 
-    if not user or not user.check_password(validated_data["password"]):
+    if not user:
+        # Perform a dummy bcrypt check to prevent timing-based user enumeration
+        bcrypt.checkpw(validated_data["password"].encode("utf-8")[:72], _DUMMY_HASH.encode("utf-8"))
+        return jsonify({"error": "Invalid username or password"}), 401
+
+    if not user.check_password(validated_data["password"]):
         return jsonify({"error": "Invalid username or password"}), 401
 
     if user.totp_enabled:
