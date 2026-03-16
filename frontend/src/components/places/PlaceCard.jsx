@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { FiMapPin } from 'react-icons/fi';
+import { FiMapPin, FiUser } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -17,6 +17,12 @@ function PlaceCard({ place }) {
             <p className="flex items-center space-x-1 text-sm text-gray-500 dark:text-gray-400 mt-1">
               <FiMapPin className="w-3.5 h-3.5" />
               <span>{place.address}</span>
+            </p>
+          )}
+          {place.creator_username && (
+            <p className="flex items-center space-x-1 text-xs text-gray-400 dark:text-gray-500 mt-1">
+              <FiUser className="w-3 h-3" />
+              <span>{place.creator_username}</span>
             </p>
           )}
         </div>

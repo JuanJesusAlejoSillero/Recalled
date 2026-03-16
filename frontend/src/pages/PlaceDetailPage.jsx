@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { FiMapPin, FiPlus, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiMapPin, FiPlus, FiEdit2, FiTrash2, FiUser } from 'react-icons/fi';
 import { placesAPI, reviewsAPI } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import StarRating from '../components/common/StarRating';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import ReviewList from '../components/reviews/ReviewList';
 import PlaceForm from '../components/places/PlaceForm';
 import { useLanguage } from '../context/LanguageContext';
@@ -18,6 +19,7 @@ function PlaceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
+  const [orphanedDialog, setOrphanedDialog] = useState(null);
 
   useEffect(() => {
     const loadPlace = async () => {
@@ -74,17 +76,21 @@ function PlaceDetailPage() {
 
       // Handle orphaned place
       if (result.orphaned_place?.can_delete) {
-        const keep = !window.confirm(
-          t('reviewPage.orphanedPlaceMessage', { name: result.orphaned_place.name })
-        );
-        if (!keep) {
-          await placesAPI.delete(result.orphaned_place.id);
-          navigate('/places');
-        }
+        setOrphanedDialog(result.orphaned_place);
       }
     } catch (err) {
       alert(err.response?.data?.error || t('reviewPage.errorDelete'));
     }
+  };
+
+  const handleOrphanedDelete = async () => {
+    try {
+      await placesAPI.delete(orphanedDialog.id);
+      navigate('/places');
+    } catch (err) {
+      alert(err.response?.data?.error || t('places.errorDelete'));
+    }
+    setOrphanedDialog(null);
   };
 
   if (loading) {
@@ -118,6 +124,12 @@ function PlaceDetailPage() {
                 <p className="flex items-center space-x-1 text-gray-500 dark:text-gray-400 mt-1">
                   <FiMapPin className="w-4 h-4" />
                   <span>{place.address}</span>
+                </p>
+              )}
+              {place.creator_username && (
+                <p className="flex items-center space-x-1 text-sm text-gray-400 dark:text-gray-500 mt-1">
+                  <FiUser className="w-3.5 h-3.5" />
+                  <span>{t('places.owner')}: {place.creator_username}</span>
                 </p>
               )}
               <div className="flex items-center space-x-3 mt-3">
@@ -181,6 +193,15 @@ function PlaceDetailPage() {
           currentUser={user}
         />
       </section>
+
+      <ConfirmDialog
+        open={!!orphanedDialog}
+        message={orphanedDialog ? t('reviewPage.orphanedPlaceMessage', { name: orphanedDialog.name }) : ''}
+        confirmLabel={t('reviewPage.orphanedPlaceDelete')}
+        cancelLabel={t('reviewPage.orphanedPlaceKeep')}
+        onConfirm={handleOrphanedDelete}
+        onCancel={() => setOrphanedDialog(null)}
+      />
     </div>
   );
 }

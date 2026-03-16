@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { reviewsAPI, placesAPI } from '../services/api';
 import ReviewList from '../components/reviews/ReviewList';
+import ConfirmDialog from '../components/common/ConfirmDialog';
 import { useLanguage } from '../context/LanguageContext';
 
 function MyReviewsPage() {
@@ -9,6 +10,7 @@ function MyReviewsPage() {
   const { t } = useLanguage();
   const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [orphanedDialog, setOrphanedDialog] = useState(null);
 
   const loadReviews = async () => {
     try {
@@ -33,16 +35,20 @@ function MyReviewsPage() {
 
       // Handle orphaned place (no reviews left)
       if (result.orphaned_place?.can_delete) {
-        const keep = !window.confirm(
-          t('reviewPage.orphanedPlaceMessage', { name: result.orphaned_place.name })
-        );
-        if (!keep) {
-          await placesAPI.delete(result.orphaned_place.id);
-        }
+        setOrphanedDialog(result.orphaned_place);
       }
     } catch (err) {
       alert(err.response?.data?.error || t('reviewPage.errorDelete'));
     }
+  };
+
+  const handleOrphanedDelete = async () => {
+    try {
+      await placesAPI.delete(orphanedDialog.id);
+    } catch (err) {
+      alert(err.response?.data?.error || t('places.errorDelete'));
+    }
+    setOrphanedDialog(null);
   };
 
   if (loading) {
@@ -61,6 +67,14 @@ function MyReviewsPage() {
         onDelete={handleDelete}
         emptyMessage={t('reviewPage.noReviews')}
         currentUser={user}
+      />
+      <ConfirmDialog
+        open={!!orphanedDialog}
+        message={orphanedDialog ? t('reviewPage.orphanedPlaceMessage', { name: orphanedDialog.name }) : ''}
+        confirmLabel={t('reviewPage.orphanedPlaceDelete')}
+        cancelLabel={t('reviewPage.orphanedPlaceKeep')}
+        onConfirm={handleOrphanedDelete}
+        onCancel={() => setOrphanedDialog(null)}
       />
     </div>
   );

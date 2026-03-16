@@ -96,6 +96,16 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     }
   }, [places, preselectedPlaceId, setValue]);
 
+  // Auto-mark review as private when a private place is selected
+  useEffect(() => {
+    if (!isNewPlace && watchedFields.place_id && places.length > 0) {
+      const selectedPlace = places.find((p) => String(p.id) === String(watchedFields.place_id));
+      if (selectedPlace?.is_private) {
+        setIsPrivate(true);
+      }
+    }
+  }, [watchedFields.place_id, places, isNewPlace]);
+
   const handleDeleteExistingPhoto = (photo) => {
     setPhotosToDelete((prev) => [...prev, photo.id]);
     setExistingPhotos((prev) => prev.filter((p) => p.id !== photo.id));

@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { reviewsAPI } from '../services/api';
 import ReviewForm from '../components/reviews/ReviewForm';
 import { useLanguage } from '../context/LanguageContext';
+import { useNavigationPrompt } from '../hooks/useNavigationPrompt';
 
 function CreateReviewPage() {
   const { id } = useParams(); // for edit mode
@@ -18,6 +19,9 @@ function CreateReviewPage() {
   // Pre-select place from URL param
   const preselectedPlace = searchParams.get('place');
 
+  // Navigation guard - intercept in-app navigation (Link clicks, navigate())
+  useNavigationPrompt(isDirty && !isSubmitting.current, t('reviewForm.unsavedChanges'));
+
   // Navigation guard - block browser close/refresh when dirty
   useEffect(() => {
     if (!isDirty || isSubmitting.current) return;
@@ -25,24 +29,11 @@ function CreateReviewPage() {
       e.preventDefault();
       e.returnValue = '';
     };
-    // Also catch back/forward browser navigation
-    const handlePopState = () => {
-      if (isDirty && !isSubmitting.current) {
-        if (!window.confirm(t('reviewForm.unsavedChanges'))) {
-          // Push state back to stay on the page
-          window.history.pushState(null, '', window.location.href);
-        }
-      }
-    };
     window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('popstate', handlePopState);
-    // Push an extra entry so popstate fires on back button
-    window.history.pushState(null, '', window.location.href);
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('popstate', handlePopState);
     };
-  }, [isDirty, t]);
+  }, [isDirty]);
 
   useEffect(() => {
     if (id) {

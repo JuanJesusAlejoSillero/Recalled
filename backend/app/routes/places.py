@@ -135,6 +135,8 @@ def get_place(place_id):
 def create_place(validated_data):
     """Create a new place. The creator is recorded."""
     user_id = int(get_jwt_identity())
+    # Ignore any created_by from input; always use the authenticated user
+    validated_data.pop("created_by", None)
     place = Place(created_by=user_id, **validated_data)
     db.session.add(place)
     db.session.commit()
@@ -156,6 +158,10 @@ def update_place(place_id, validated_data):
 
     if place.created_by != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403
+
+    # Only admin can change the owner; non-admin: strip it; None: keep current
+    if not current_user.is_admin or validated_data.get("created_by") is None:
+        validated_data.pop("created_by", None)
 
     for key, value in validated_data.items():
         setattr(place, key, value)

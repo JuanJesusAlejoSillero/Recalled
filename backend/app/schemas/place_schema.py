@@ -34,6 +34,7 @@ class PlaceCreateSchema(Schema):
     longitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180))
     category = fields.Str(allow_none=True, load_default=None, validate=validate.OneOf(VALID_CATEGORIES))
     is_private = fields.Bool(load_default=False)
+    created_by = fields.Int(allow_none=True, load_default=None)
 
     @pre_load
     def sanitize(self, data, **kwargs):

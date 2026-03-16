@@ -78,6 +78,7 @@ const translations = {
       previous: 'Anterior',
       next: 'Siguiente',
       pageOf: 'Página {page} de {totalPages}',
+      owner: 'Propietario',
     },
 
     // Place form
@@ -94,6 +95,8 @@ const translations = {
       longitude: 'Longitud',
       longitudePlaceholder: '-180 a 180',
       privatePlace: 'Lugar privado (solo visible para ti)',
+      owner: 'Propietario',
+      noOwner: 'Sin propietario',
       saving: 'Guardando...',
       update: 'Actualizar',
       create: 'Crear Lugar',
@@ -366,6 +369,7 @@ const translations = {
       previous: 'Previous',
       next: 'Next',
       pageOf: 'Page {page} of {totalPages}',
+      owner: 'Owner',
     },
 
     placeForm: {
@@ -381,6 +385,8 @@ const translations = {
       longitude: 'Longitude',
       longitudePlaceholder: '-180 to 180',
       privatePlace: 'Private place (only visible to you)',
+      owner: 'Owner',
+      noOwner: 'No owner',
       saving: 'Saving...',
       update: 'Update',
       create: 'Create Place',
