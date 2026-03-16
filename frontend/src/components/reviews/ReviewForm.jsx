@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { FiX } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
 import ImageUploader from '../common/ImageUploader';
+import ConfirmDialog from '../common/ConfirmDialog';
 import { placesAPI } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { getThumbnailUrl } from '../../utils/helpers';
@@ -29,6 +30,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
   const [newPlaceIsPrivate, setNewPlaceIsPrivate] = useState(false);
   const [placeError, setPlaceError] = useState('');
   const [isPrivate, setIsPrivate] = useState(initialData?.is_private || false);
+  const [privacyConfirm, setPrivacyConfirm] = useState(null);
 
   // Dirty tracking
   const initialSnapshot = useRef(null);
@@ -106,6 +108,13 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     }
   }, [watchedFields.place_id, places, isNewPlace]);
 
+  // Auto-mark review as private when creating a new private place inline
+  useEffect(() => {
+    if (isNewPlace && newPlaceIsPrivate) {
+      setIsPrivate(true);
+    }
+  }, [isNewPlace, newPlaceIsPrivate]);
+
   const handleDeleteExistingPhoto = (photo) => {
     setPhotosToDelete((prev) => [...prev, photo.id]);
     setExistingPhotos((prev) => prev.filter((p) => p.id !== photo.id));
@@ -115,6 +124,35 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     setPhotosToDelete((prev) => prev.filter((id) => id !== photoId));
     const restored = initialData?.photos?.find((p) => p.id === photoId);
     if (restored) setExistingPhotos((prev) => [...prev, restored]);
+  };
+
+  const getPlaceIsPrivate = () => {
+    if (isNewPlace) return newPlaceIsPrivate;
+    if (watchedFields.place_id && places.length > 0) {
+      const selectedPlace = places.find((p) => String(p.id) === String(watchedFields.place_id));
+      return selectedPlace?.is_private || false;
+    }
+    return false;
+  };
+
+  const buildSubmitPayload = (data) => {
+    if (isNewPlace) {
+      const { place_id: _, ...rest } = data;
+      const placeFields = {
+        place_name: newPlaceName.trim(),
+        place_address: newPlaceAddress.trim() || null,
+        place_category: newPlaceCategory || null,
+        place_latitude: newPlaceLatitude ? parseFloat(newPlaceLatitude) : null,
+        place_longitude: newPlaceLongitude ? parseFloat(newPlaceLongitude) : null,
+        place_is_private: newPlaceIsPrivate,
+      };
+      return { ...rest, rating, visit_date: data.visit_date || null, ...placeFields, is_private: isPrivate };
+    }
+    return { ...data, rating, place_id: parseInt(data.place_id), visit_date: data.visit_date || null, is_private: isPrivate };
+  };
+
+  const doSubmit = (payload) => {
+    onSubmit(payload, photos, photosToDelete);
   };
 
   const handleFormSubmit = (data) => {
@@ -130,31 +168,27 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         setPlaceError(t('reviewForm.placeNameRequired'));
         return;
       }
-      const { place_id: _, ...rest } = data;
-      const placeFields = {
-        place_name: newPlaceName.trim(),
-        place_address: newPlaceAddress.trim() || null,
-        place_category: newPlaceCategory || null,
-        place_latitude: newPlaceLatitude ? parseFloat(newPlaceLatitude) : null,
-        place_longitude: newPlaceLongitude ? parseFloat(newPlaceLongitude) : null,
-        place_is_private: newPlaceIsPrivate,
-      };
-      onSubmit(
-        { ...rest, rating, visit_date: data.visit_date || null, ...placeFields, is_private: isPrivate },
-        photos,
-        photosToDelete
-      );
     } else {
       if (!data.place_id) {
         setPlaceError(t('reviewForm.selectPlaceRequired'));
         return;
       }
-      onSubmit(
-        { ...data, rating, place_id: parseInt(data.place_id), visit_date: data.visit_date || null, is_private: isPrivate },
-        photos,
-        photosToDelete
-      );
     }
+
+    const payload = buildSubmitPayload(data);
+    const placePrivate = getPlaceIsPrivate();
+
+    // Check privacy mismatch
+    if (placePrivate && !isPrivate) {
+      setPrivacyConfirm({ message: t('reviewForm.confirmPublicOnPrivatePlace'), payload });
+      return;
+    }
+    if (!placePrivate && isPrivate) {
+      setPrivacyConfirm({ message: t('reviewForm.confirmPrivateOnPublicPlace'), payload });
+      return;
+    }
+
+    doSubmit(payload);
   };
 
   const inputClass = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white";
@@ -393,6 +427,20 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
       >
         {loading ? t('reviewForm.saving') : initialData ? t('reviewForm.update') : t('reviewForm.create')}
       </button>
+
+      <ConfirmDialog
+        open={!!privacyConfirm}
+        message={privacyConfirm?.message || ''}
+        confirmLabel={t('reviewForm.confirmSave')}
+        cancelLabel={t('placeForm.cancel')}
+        onConfirm={() => {
+          const payload = privacyConfirm.payload;
+          setPrivacyConfirm(null);
+          doSubmit(payload);
+        }}
+        onCancel={() => setPrivacyConfirm(null)}
+        variant="primary"
+      />
     </form>
   );
 }

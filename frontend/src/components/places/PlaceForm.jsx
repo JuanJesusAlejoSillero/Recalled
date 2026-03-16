@@ -1,21 +1,23 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
 import { usersAPI } from '../../services/api';
+import { useNavigationPrompt } from '../../hooks/useNavigationPrompt';
 
 const CATEGORY_KEYS = [
   'restaurant', 'hotel', 'museum', 'park', 'beach',
   'monument', 'shopping', 'nightlife', 'cafe', 'bar', 'other',
 ];
 
-function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel }) {
+function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, onDirtyChange }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [isPrivate, setIsPrivate] = useState(initialData?.is_private || false);
   const [owner, setOwner] = useState(initialData?.created_by || '');
   const [users, setUsers] = useState([]);
-  const { register, handleSubmit, formState: { errors } } = useForm({
+  const isSubmitting = useRef(false);
+  const { register, handleSubmit, watch, formState: { errors } } = useForm({
     defaultValues: {
       name: initialData?.name || '',
       address: initialData?.address || '',
@@ -24,6 +26,34 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel }) 
       longitude: initialData?.longitude || '',
     },
   });
+
+  // Dirty tracking
+  const initialSnapshot = useRef({
+    name: initialData?.name || '',
+    address: initialData?.address || '',
+    category: initialData?.category || '',
+    latitude: initialData?.latitude || '',
+    longitude: initialData?.longitude || '',
+    isPrivate: initialData?.is_private || false,
+    owner: initialData?.created_by || '',
+  });
+
+  const watchedFields = watch();
+  const isDirty =
+    watchedFields.name !== initialSnapshot.current.name ||
+    watchedFields.address !== initialSnapshot.current.address ||
+    watchedFields.category !== initialSnapshot.current.category ||
+    String(watchedFields.latitude) !== String(initialSnapshot.current.latitude) ||
+    String(watchedFields.longitude) !== String(initialSnapshot.current.longitude) ||
+    isPrivate !== initialSnapshot.current.isPrivate ||
+    String(owner) !== String(initialSnapshot.current.owner);
+
+  useNavigationPrompt(isDirty && !isSubmitting.current, t('reviewForm.unsavedChanges'));
+
+  // Report dirty state to parent
+  useEffect(() => {
+    if (onDirtyChange) onDirtyChange(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   // Load users list for admin owner selector
   useEffect(() => {
@@ -35,6 +65,7 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel }) 
   }, [user?.is_admin, initialData]);
 
   const onFormSubmit = (data) => {
+    isSubmitting.current = true;
     const payload = {
       ...data,
       latitude: data.latitude ? parseFloat(data.latitude) : null,
@@ -46,6 +77,12 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel }) 
       payload.created_by = parseInt(owner);
     }
     onSubmit(payload);
+  };
+
+  const handleCancel = () => {
+    if (isDirty && !window.confirm(t('reviewForm.unsavedChanges'))) return;
+    isSubmitting.current = true; // prevent nav guard firing during cancel
+    onCancel();
   };
 
   return (
@@ -149,7 +186,7 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel }) 
         {onCancel && (
           <button
             type="button"
-            onClick={onCancel}
+            onClick={handleCancel}
             className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             {t('placeForm.cancel')}

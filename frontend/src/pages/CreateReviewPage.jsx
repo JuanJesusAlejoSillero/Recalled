@@ -19,21 +19,8 @@ function CreateReviewPage() {
   // Pre-select place from URL param
   const preselectedPlace = searchParams.get('place');
 
-  // Navigation guard - intercept in-app navigation (Link clicks, navigate())
+  // Navigation guard - intercept all navigation when dirty
   useNavigationPrompt(isDirty && !isSubmitting.current, t('reviewForm.unsavedChanges'));
-
-  // Navigation guard - block browser close/refresh when dirty
-  useEffect(() => {
-    if (!isDirty || isSubmitting.current) return;
-    const handleBeforeUnload = (e) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [isDirty]);
 
   useEffect(() => {
     if (id) {

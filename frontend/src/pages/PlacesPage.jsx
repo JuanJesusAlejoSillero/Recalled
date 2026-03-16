@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { FiPlus, FiSearch } from 'react-icons/fi';
 import { placesAPI } from '../services/api';
 import PlaceList from '../components/places/PlaceList';
@@ -20,8 +20,21 @@ function PlacesPage() {
   const [category, setCategory] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
+  const [formDirty, setFormDirty] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  const handleFormDirtyChange = useCallback((dirty) => {
+    setFormDirty(dirty);
+  }, []);
+
+  const toggleForm = () => {
+    if (showForm && formDirty) {
+      if (!window.confirm(t('reviewForm.unsavedChanges'))) return;
+    }
+    setShowForm(!showForm);
+    if (showForm) setFormDirty(false);
+  };
 
   const loadPlaces = async () => {
     setLoading(true);
@@ -66,7 +79,7 @@ function PlacesPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('places.title')}</h1>
         <button
-          onClick={() => setShowForm(!showForm)}
+          onClick={toggleForm}
           className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm font-medium"
         >
           <FiPlus className="w-4 h-4" />
@@ -76,7 +89,7 @@ function PlacesPage() {
 
       {showForm && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <PlaceForm onSubmit={handleCreatePlace} loading={formLoading} onCancel={() => setShowForm(false)} />
+          <PlaceForm onSubmit={handleCreatePlace} loading={formLoading} onCancel={() => { setFormDirty(false); setShowForm(false); }} onDirtyChange={handleFormDirtyChange} />
         </div>
       )}
 
