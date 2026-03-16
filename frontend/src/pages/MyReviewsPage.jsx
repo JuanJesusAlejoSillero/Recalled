@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { reviewsAPI } from '../services/api';
+import { reviewsAPI, placesAPI } from '../services/api';
 import ReviewList from '../components/reviews/ReviewList';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -28,8 +28,18 @@ function MyReviewsPage() {
   const handleDelete = async (reviewId) => {
     if (!window.confirm(t('reviewPage.confirmDelete'))) return;
     try {
-      await reviewsAPI.delete(reviewId);
+      const { data: result } = await reviewsAPI.delete(reviewId);
       setReviews(reviews.filter((r) => r.id !== reviewId));
+
+      // Handle orphaned place (no reviews left)
+      if (result.orphaned_place?.can_delete) {
+        const keep = !window.confirm(
+          t('reviewPage.orphanedPlaceMessage', { name: result.orphaned_place.name })
+        );
+        if (!keep) {
+          await placesAPI.delete(result.orphaned_place.id);
+        }
+      }
     } catch (err) {
       alert(err.response?.data?.error || t('reviewPage.errorDelete'));
     }

@@ -86,6 +86,23 @@ with app.app_context():
             conn.commit()
         print("✓ email column removed from users table")
 
+    # Add is_private and created_by columns to places table
+    place_columns = [col["name"] for col in inspector.get_columns("places")]
+    if "is_private" not in place_columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE places ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT 0"
+            ))
+            conn.commit()
+        print("✓ is_private column added to places table")
+    if "created_by" not in place_columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE places ADD COLUMN created_by INTEGER REFERENCES users(id) ON DELETE SET NULL"
+            ))
+            conn.commit()
+        print("✓ created_by column added to places table")
+
     print("✓ Base de datos verificada")
 
     # Crear usuario administrador si no existe

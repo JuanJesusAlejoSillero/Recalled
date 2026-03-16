@@ -16,6 +16,11 @@ class Place(db.Model):
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
     category = db.Column(db.String(50))
+    is_private = db.Column(db.Boolean, default=False, nullable=False)
+    created_by = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
     created_at = db.Column(
         db.DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -24,6 +29,7 @@ class Place(db.Model):
     reviews = db.relationship(
         "Review", backref="place", lazy="dynamic", cascade="all, delete-orphan"
     )
+    creator = db.relationship("User", foreign_keys=[created_by])
 
     @property
     def avg_rating(self) -> float | None:
@@ -88,6 +94,9 @@ class Place(db.Model):
             "latitude": self.latitude,
             "longitude": self.longitude,
             "category": self.category,
+            "is_private": bool(self.is_private),
+            "created_by": self.created_by,
+            "creator_username": self.creator.username if self.creator else None,
             "avg_rating": round(avg_result, 1) if avg_result else None,
             "review_count": visible_count or 0,
             "created_at": self.created_at.isoformat() if self.created_at else None,

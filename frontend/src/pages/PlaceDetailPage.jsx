@@ -48,20 +48,40 @@ function PlaceDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(t('places.confirmDelete', { name: place.name }))) return;
+    const isOwner = place.created_by === user?.id;
+    const msg = isOwner
+      ? t('places.confirmDeleteOwner', { name: place.name })
+      : t('places.confirmDelete', { name: place.name });
+    if (!window.confirm(msg)) return;
     try {
       await placesAPI.delete(id);
       navigate('/places');
     } catch (err) {
-      alert(err.response?.data?.error || t('places.errorDelete'));
+      const errorMsg = err.response?.data?.error;
+      if (err.response?.status === 403) {
+        alert(t('places.cannotDelete'));
+      } else {
+        alert(errorMsg || t('places.errorDelete'));
+      }
     }
   };
 
   const handleDeleteReview = async (reviewId) => {
     if (!window.confirm(t('reviewPage.confirmDelete'))) return;
     try {
-      await reviewsAPI.delete(reviewId);
+      const { data: result } = await reviewsAPI.delete(reviewId);
       setReviews(reviews.filter((r) => r.id !== reviewId));
+
+      // Handle orphaned place
+      if (result.orphaned_place?.can_delete) {
+        const keep = !window.confirm(
+          t('reviewPage.orphanedPlaceMessage', { name: result.orphaned_place.name })
+        );
+        if (!keep) {
+          await placesAPI.delete(result.orphaned_place.id);
+          navigate('/places');
+        }
+      }
     } catch (err) {
       alert(err.response?.data?.error || t('reviewPage.errorDelete'));
     }
@@ -105,7 +125,7 @@ function PlaceDetailPage() {
                   <>
                     <StarRating rating={Math.round(place.avg_rating)} readonly />
                     <span className="text-lg font-semibold text-gray-900 dark:text-white">{place.avg_rating}</span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">({place.review_count} reviews)</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">({place.review_count} {place.review_count === 1 ? t('places.review') : t('places.reviews')})</span>
                   </>
                 ) : (
                   <span className="text-gray-400 dark:text-gray-500">{t('places.noRatingsYet')}</span>
@@ -125,7 +145,7 @@ function PlaceDetailPage() {
                 <FiPlus className="w-4 h-4" />
                 <span>{t('places.writeReview')}</span>
               </Link>
-              {user?.is_admin && (
+              {(user?.is_admin || place.created_by === user?.id) && (
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setEditing(true)}
@@ -157,7 +177,7 @@ function PlaceDetailPage() {
           reviews={reviews}
           showPlace={false}
           emptyMessage={t('places.firstReview')}
-          onDelete={user?.is_admin ? handleDeleteReview : undefined}
+          onDelete={handleDeleteReview}
           currentUser={user}
         />
       </section>

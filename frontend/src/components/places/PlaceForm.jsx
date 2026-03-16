@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -8,6 +9,7 @@ const CATEGORY_KEYS = [
 
 function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel }) {
   const { t } = useLanguage();
+  const [isPrivate, setIsPrivate] = useState(initialData?.is_private || false);
   const { register, handleSubmit, formState: { errors } } = useForm({
     defaultValues: {
       name: initialData?.name || '',
@@ -24,13 +26,16 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel }) 
       latitude: data.latitude ? parseFloat(data.latitude) : null,
       longitude: data.longitude ? parseFloat(data.longitude) : null,
       category: data.category || null,
+      is_private: isPrivate,
     });
   };
 
   return (
     <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
       <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('placeForm.name')}</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          {t('placeForm.name')} <span className="text-red-500">*</span>
+        </label>
         <input
           type="text"
           {...register('name', { required: t('placeForm.nameRequired') })}
@@ -84,6 +89,19 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel }) 
             placeholder={t('placeForm.longitudePlaceholder')}
           />
         </div>
+      </div>
+
+      <div className="flex items-center space-x-3">
+        <input
+          type="checkbox"
+          id="place_is_private"
+          checked={isPrivate}
+          onChange={(e) => setIsPrivate(e.target.checked)}
+          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 rounded"
+        />
+        <label htmlFor="place_is_private" className="text-sm text-gray-700 dark:text-gray-300">
+          {t('placeForm.privatePlace')}
+        </label>
       </div>
 
       <div className="flex space-x-3 pt-2">

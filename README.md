@@ -140,12 +140,37 @@ Data is stored in mounted volumes on your host:
 | `./uploads-dev/` | User-uploaded photos           |
 | `./logs-dev/`    | Gunicorn access and error logs |
 
-## Backup
+## Backup & Restore
+
+### Backup
+
+Stop the containers first to ensure data consistency (especially the SQLite database):
 
 ```bash
 docker compose stop
-cp -r data/ data-backup-$(date +%Y%m%d)/
-cp -r uploads/ uploads-backup-$(date +%Y%m%d)/
+tar czf recalled-backup-$(date +%Y%m%d).tar.gz data/ uploads/
+docker compose start
+```
+
+For the development stack:
+
+```bash
+docker compose -f docker-compose.dev.yml stop
+tar czf recalled-dev-backup-$(date +%Y%m%d).tar.gz data-dev/ uploads-dev/
+docker compose -f docker-compose.dev.yml start
+```
+
+### Restore
+
+```bash
+docker compose stop
+
+# Remove current data
+rm -rf data/ uploads/
+
+# Extract the backup
+tar xzf recalled-backup-YYYYMMDD.tar.gz
+
 docker compose start
 ```
 

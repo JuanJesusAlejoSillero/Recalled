@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { reviewsAPI } from '../services/api';
 import ReviewForm from '../components/reviews/ReviewForm';
@@ -12,9 +12,37 @@ function CreateReviewPage() {
   const [loading, setLoading] = useState(false);
   const [initialData, setInitialData] = useState(null);
   const [pageLoading, setPageLoading] = useState(!!id);
+  const [isDirty, setIsDirty] = useState(false);
+  const isSubmitting = useRef(false);
 
   // Pre-select place from URL param
   const preselectedPlace = searchParams.get('place');
+
+  // Navigation guard - block browser close/refresh when dirty
+  useEffect(() => {
+    if (!isDirty || isSubmitting.current) return;
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    // Also catch back/forward browser navigation
+    const handlePopState = () => {
+      if (isDirty && !isSubmitting.current) {
+        if (!window.confirm(t('reviewForm.unsavedChanges'))) {
+          // Push state back to stay on the page
+          window.history.pushState(null, '', window.location.href);
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('popstate', handlePopState);
+    // Push an extra entry so popstate fires on back button
+    window.history.pushState(null, '', window.location.href);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [isDirty, t]);
 
   useEffect(() => {
     if (id) {
@@ -24,15 +52,29 @@ function CreateReviewPage() {
       }).catch(() => {
         navigate('/my-reviews');
       });
+    } else {
+      // Reset when switching from edit to new review
+      setInitialData(null);
+      setPageLoading(false);
     }
   }, [id, navigate]);
 
-  const handleSubmit = async (data, photos) => {
+  const handleDirtyChange = useCallback((dirty) => {
+    setIsDirty(dirty);
+  }, []);
+
+  const handleSubmit = async (data, photos, photosToDelete = []) => {
     setLoading(true);
+    isSubmitting.current = true;
     try {
       if (id) {
         // Update
         await reviewsAPI.update(id, data);
+
+        // Delete photos marked for removal
+        for (const photoId of photosToDelete) {
+          await reviewsAPI.deletePhoto(id, photoId);
+        }
 
         // Upload new photos if any
         if (photos?.length > 0) {
@@ -56,6 +98,7 @@ function CreateReviewPage() {
         navigate('/my-reviews');
       }
     } catch (err) {
+      isSubmitting.current = false;
       alert(err.response?.data?.error || t('reviewPage.errorSave'));
     } finally {
       setLoading(false);
@@ -70,7 +113,7 @@ function CreateReviewPage() {
     );
   }
 
-  const formInitial = initialData || (preselectedPlace ? { place_id: preselectedPlace } : null);
+  const formInitial = id ? initialData : (preselectedPlace ? { place_id: preselectedPlace } : null);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -79,9 +122,11 @@ function CreateReviewPage() {
       </h1>
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <ReviewForm
+          key={id || 'new'}
           onSubmit={handleSubmit}
           initialData={formInitial}
           loading={loading}
+          onDirtyChange={handleDirtyChange}
         />
       </div>
     </div>

@@ -1,7 +1,7 @@
 """Places routes."""
 
 from flask import Blueprint, jsonify, request
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 
 from app import db
@@ -39,13 +39,24 @@ def _visible_reviews_subquery(current_user_id, is_admin):
     return query.group_by(Review.place_id).subquery()
 
 
+def _place_visible_to_user(place, current_user_id, is_admin):
+    """Check if a place is visible to the given user."""
+    if is_admin:
+        return True
+    if not place.is_private:
+        return True
+    if current_user_id and place.created_by == current_user_id:
+        return True
+    return False
+
+
 @places_bp.route("", methods=["GET"])
 @jwt_required()
 def list_places():
-    """List all places with optional filters.
+    """List places visible to the current user.
 
-    Only places that have at least one visible review for the current user
-    are returned.
+    A place is visible if it is public, or the user is its creator, or user is admin.
+    The review stats only reflect reviews visible to the user.
     """
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
@@ -58,8 +69,17 @@ def list_places():
     current_user_id, is_admin = _user_context()
     vis_sub = _visible_reviews_subquery(current_user_id, is_admin)
 
-    # Inner join ensures only places with visible_count > 0 appear
-    query = Place.query.join(vis_sub, Place.id == vis_sub.c.place_id)
+    # Left join: include places even if they have no visible reviews
+    query = Place.query.outerjoin(vis_sub, Place.id == vis_sub.c.place_id)
+
+    # Visibility filter: public places OR user's own private places OR admin sees all
+    if not is_admin:
+        query = query.filter(
+            db.or_(
+                Place.is_private == False,
+                Place.created_by == current_user_id,
+            )
+        )
 
     if category:
         query = query.filter(Place.category == category)
@@ -93,24 +113,18 @@ def list_places():
 @places_bp.route("/<int:place_id>", methods=["GET"])
 @jwt_required()
 def get_place(place_id):
-    """Get a specific place with its reviews.
-
-    Returns 404 if the place has no reviews visible to the current user,
-    preventing information leakage about places with only others' private
-    reviews.
-    """
+    """Get a specific place with its reviews."""
     place = Place.query.get_or_404(place_id, description="Place not found")
     current_user_id, is_admin = _user_context()
+
+    if not _place_visible_to_user(place, current_user_id, is_admin):
+        return jsonify({"error": "Place not found"}), 404
 
     data = place.to_dict(
         include_reviews=True,
         current_user_id=current_user_id,
         is_admin=is_admin,
     )
-
-    # Hide places that only have private reviews from other users
-    if not is_admin and data["review_count"] == 0:
-        return jsonify({"error": "Place not found"}), 404
 
     return jsonify(data), 200
 
@@ -119,34 +133,68 @@ def get_place(place_id):
 @jwt_required()
 @validate_json(PlaceCreateSchema)
 def create_place(validated_data):
-    """Create a new place."""
-    place = Place(**validated_data)
+    """Create a new place. The creator is recorded."""
+    user_id = int(get_jwt_identity())
+    place = Place(created_by=user_id, **validated_data)
     db.session.add(place)
     db.session.commit()
 
-    return jsonify(place.to_dict()), 201
+    current_user_id, is_admin = _user_context()
+    return jsonify(place.to_dict(current_user_id=current_user_id, is_admin=is_admin)), 201
 
 
 @places_bp.route("/<int:place_id>", methods=["PUT"])
-@admin_required
+@jwt_required()
 @validate_json(PlaceCreateSchema)
 def update_place(place_id, validated_data):
-    """Update a place (admin only)."""
+    """Update a place (creator or admin)."""
     place = Place.query.get_or_404(place_id, description="Place not found")
+    current_user = get_current_user()
+
+    if not current_user:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if place.created_by != current_user.id and not current_user.is_admin:
+        return jsonify({"error": "Permission denied"}), 403
 
     for key, value in validated_data.items():
         setattr(place, key, value)
 
     db.session.commit()
 
-    return jsonify(place.to_dict()), 200
+    return jsonify(place.to_dict(current_user_id=current_user.id, is_admin=current_user.is_admin)), 200
 
 
 @places_bp.route("/<int:place_id>", methods=["DELETE"])
-@admin_required
+@jwt_required()
 def delete_place(place_id):
-    """Delete a place and all its reviews (admin only)."""
+    """Delete a place.
+
+    Admin can always delete.
+    Creator can delete only if the place has no reviews from other users.
+    """
     place = Place.query.get_or_404(place_id, description="Place not found")
+    current_user = get_current_user()
+
+    if not current_user:
+        return jsonify({"error": "Authentication required"}), 401
+
+    if current_user.is_admin:
+        db.session.delete(place)
+        db.session.commit()
+        return jsonify({"message": f"Place '{place.name}' deleted"}), 200
+
+    if place.created_by != current_user.id:
+        return jsonify({"error": "Permission denied"}), 403
+
+    # Creator can only delete if no other users have reviews on this place
+    other_reviews = Review.query.filter(
+        Review.place_id == place_id,
+        Review.user_id != current_user.id,
+    ).count()
+
+    if other_reviews > 0:
+        return jsonify({"error": "Cannot delete: other users have reviews on this place"}), 403
 
     db.session.delete(place)
     db.session.commit()
@@ -161,16 +209,8 @@ def get_place_reviews(place_id):
     place = Place.query.get_or_404(place_id, description="Place not found")
     current_user_id, is_admin = _user_context()
 
-    # Hide places that only have private reviews from other users
-    if not is_admin:
-        vis_sub = _visible_reviews_subquery(current_user_id, is_admin)
-        has_visible = (
-            db.session.query(vis_sub.c.visible_count)
-            .filter(vis_sub.c.place_id == place_id)
-            .scalar()
-        )
-        if not has_visible:
-            return jsonify({"error": "Place not found"}), 404
+    if not _place_visible_to_user(place, current_user_id, is_admin):
+        return jsonify({"error": "Place not found"}), 404
 
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)

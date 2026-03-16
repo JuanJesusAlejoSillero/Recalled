@@ -71,6 +71,25 @@ def get_review(review_id):
     return jsonify(review.to_dict()), 200
 
 
+def _extract_place_fields(validated_data):
+    """Pop inline place_* fields from validated_data and return a dict for Place creation."""
+    place_fields = {}
+    for suffix in ("name", "address", "category", "latitude", "longitude", "is_private"):
+        key = f"place_{suffix}"
+        val = validated_data.pop(key, None)
+        if val is not None:
+            place_fields[suffix if suffix != "name" else "name"] = val
+    return place_fields
+
+
+def _create_inline_place(place_fields, user_id):
+    """Create a Place from inline fields and return its id."""
+    place = Place(created_by=user_id, **place_fields)
+    db.session.add(place)
+    db.session.flush()
+    return place.id
+
+
 @reviews_bp.route("", methods=["POST"])
 @jwt_required()
 @validate_json(ReviewCreateSchema)
@@ -78,22 +97,18 @@ def create_review(validated_data):
     """Create a new review.
 
     Accepts either place_id (existing place) or place_name (creates a new place
-    in the same transaction).
+    in the same transaction) with optional place details.
     """
     user_id = int(get_jwt_identity())
 
-    place_id = validated_data.get("place_id")
-    place_name = validated_data.get("place_name")
+    place_id = validated_data.pop("place_id", None)
+    place_fields = _extract_place_fields(validated_data)
 
-    if not place_id and not place_name:
+    if not place_id and not place_fields.get("name"):
         return jsonify({"error": "Provide place_id or place_name"}), 400
 
-    if place_name:
-        # Create a new place in the same transaction
-        place = Place(name=place_name)
-        db.session.add(place)
-        db.session.flush()  # get the id without committing
-        place_id = place.id
+    if place_fields.get("name"):
+        place_id = _create_inline_place(place_fields, user_id)
     else:
         place = Place.query.get(place_id)
         if not place:
@@ -129,6 +144,11 @@ def update_review(review_id, validated_data):
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403
 
+    # Handle new place creation inline
+    place_fields = _extract_place_fields(validated_data)
+    if place_fields.get("name"):
+        validated_data["place_id"] = _create_inline_place(place_fields, current_user.id)
+
     for key, value in validated_data.items():
         setattr(review, key, value)
 
@@ -140,7 +160,11 @@ def update_review(review_id, validated_data):
 @reviews_bp.route("/<int:review_id>", methods=["DELETE"])
 @jwt_required()
 def delete_review(review_id):
-    """Delete a review (owner or admin)."""
+    """Delete a review (owner or admin).
+
+    If this was the last review on a place owned by the user, include
+    orphaned_place info in the response so the frontend can offer deletion.
+    """
     current_user = get_current_user()
     if not current_user:
         return jsonify({"error": "Authentication required"}), 401
@@ -150,6 +174,9 @@ def delete_review(review_id):
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403
 
+    place_id = review.place_id
+    place = review.place
+
     # Delete associated photo files from disk
     for photo in review.photos:
         delete_photo(photo.filename)
@@ -157,7 +184,22 @@ def delete_review(review_id):
     db.session.delete(review)
     db.session.commit()
 
-    return jsonify({"message": "Review deleted"}), 200
+    result = {"message": "Review deleted"}
+
+    # Check if the place is now orphaned (no reviews left)
+    remaining = Review.query.filter(Review.place_id == place_id).count()
+    if remaining == 0:
+        can_delete = (
+            current_user.is_admin
+            or place.created_by == current_user.id
+        )
+        result["orphaned_place"] = {
+            "id": place.id,
+            "name": place.name,
+            "can_delete": can_delete,
+        }
+
+    return jsonify(result), 200
 
 
 @reviews_bp.route("/<int:review_id>/photos", methods=["POST"])

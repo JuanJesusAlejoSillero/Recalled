@@ -4,6 +4,11 @@ from marshmallow import Schema, fields, validate, pre_load
 
 from app.utils.security import sanitize_string
 
+VALID_CATEGORIES = [
+    "restaurant", "hotel", "museum", "park", "beach", "monument",
+    "shopping", "nightlife", "cafe", "bar", "other",
+]
+
 
 class ReviewSchema(Schema):
     """Schema for serializing review data."""
@@ -23,23 +28,49 @@ class ReviewSchema(Schema):
     photos = fields.List(fields.Dict(), dump_only=True)
 
 
+def _place_inline_fields():
+    """Common inline place fields for create/update schemas."""
+    return {
+        "place_name": fields.Str(load_default=None, validate=validate.Length(min=1, max=200)),
+        "place_address": fields.Str(allow_none=True, load_default=None),
+        "place_category": fields.Str(allow_none=True, load_default=None, validate=validate.OneOf(VALID_CATEGORIES)),
+        "place_latitude": fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90)),
+        "place_longitude": fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180)),
+        "place_is_private": fields.Bool(load_default=False),
+    }
+
+
+def _sanitize_place_fields(data):
+    """Sanitize inline place fields."""
+    if "place_name" in data:
+        data["place_name"] = sanitize_string(data.get("place_name"))
+    if "place_address" in data:
+        data["place_address"] = sanitize_string(data.get("place_address"))
+
+
 class ReviewCreateSchema(Schema):
     """Schema for creating a review."""
 
     place_id = fields.Int(load_default=None)
-    place_name = fields.Str(load_default=None, validate=validate.Length(min=1, max=200))
     rating = fields.Int(required=True, validate=validate.Range(min=1, max=5))
     title = fields.Str(allow_none=True, load_default=None, validate=validate.Length(max=200))
     comment = fields.Str(allow_none=True, load_default=None)
     visit_date = fields.Date(allow_none=True, load_default=None)
     is_private = fields.Bool(load_default=False)
 
+    # Inline place fields
+    place_name = fields.Str(load_default=None, validate=validate.Length(min=1, max=200))
+    place_address = fields.Str(allow_none=True, load_default=None)
+    place_category = fields.Str(allow_none=True, load_default=None, validate=validate.OneOf(VALID_CATEGORIES))
+    place_latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
+    place_longitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180))
+    place_is_private = fields.Bool(load_default=False)
+
     @pre_load
     def sanitize(self, data, **kwargs):
         data["title"] = sanitize_string(data.get("title"))
         data["comment"] = sanitize_string(data.get("comment"))
-        if "place_name" in data:
-            data["place_name"] = sanitize_string(data.get("place_name"))
+        _sanitize_place_fields(data)
         if data.get("visit_date") == "":
             data["visit_date"] = None
         return data
@@ -55,12 +86,21 @@ class ReviewUpdateSchema(Schema):
     visit_date = fields.Date(allow_none=True)
     is_private = fields.Bool()
 
+    # Inline place fields
+    place_name = fields.Str(load_default=None, validate=validate.Length(min=1, max=200))
+    place_address = fields.Str(allow_none=True, load_default=None)
+    place_category = fields.Str(allow_none=True, load_default=None, validate=validate.OneOf(VALID_CATEGORIES))
+    place_latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
+    place_longitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180))
+    place_is_private = fields.Bool(load_default=False)
+
     @pre_load
     def sanitize(self, data, **kwargs):
         if "title" in data:
             data["title"] = sanitize_string(data.get("title"))
         if "comment" in data:
             data["comment"] = sanitize_string(data.get("comment"))
+        _sanitize_place_fields(data)
         if data.get("visit_date") == "":
             data["visit_date"] = None
         return data

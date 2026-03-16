@@ -7,6 +7,8 @@ function ImageUploader({ onFilesSelected, maxFiles = 5 }) {
   const [previews, setPreviews] = useState([]);
   const fileInputRef = useRef(null);
 
+  if (maxFiles <= 0) return null;
+
   const handleFiles = (fileList) => {
     const files = Array.from(fileList).slice(0, maxFiles - previews.length);
     const newPreviews = files.map((file) => ({
