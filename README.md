@@ -9,9 +9,12 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Authentication** - JWT-based login with access and refresh tokens
 - **Two-factor authentication (2FA)** - TOTP-based with QR code and manual secret key
 - **Places** - Create, search, filter by category, and sort by rating
+- **Place ownership** - Track place creators, admin can reassign ownership
 - **Reviews** - Write reviews with 1-5 star ratings, titles, comments, and visit dates
 - **Private reviews** - Mark reviews as private so only you can see them
+- **Privacy-aware defaults** - Reviews for private places are auto-marked as private, with confirmation dialogs for mismatched privacy settings
 - **Photos** - Upload up to 5 photos per review with automatic thumbnail generation
+- **Unsaved changes protection** - Navigation guards warn before losing unsaved work in review and place forms (in-app navigation, browser close, and back/forward)
 - **Admin panel** - User management and general statistics
 - **Personal dashboard** - Your stats, recent reviews, and top-rated places
 - **Settings** - Change username, password, enable/disable 2FA, and delete account
@@ -19,6 +22,7 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Dark mode** - Toggle between light and dark themes
 - **Multi-language** - Spanish and English with automatic browser detection
 - **Responsive** - Mobile-friendly with hamburger menu navigation
+- **Security hardened** - CSP headers, magic bytes image validation, decompression bomb protection, timing-safe login
 
 ## Tech Stack
 
@@ -106,7 +110,7 @@ Recalled/
 │   │   ├── services/        # Axios API client
 │   │   ├── context/         # Zustand auth store, theme context, language context
 │   │   ├── i18n/            # Translation strings (ES/EN)
-│   │   ├── hooks/           # Custom hooks
+│   │   ├── hooks/           # Custom hooks (auth, navigation guards)
 │   │   └── utils/           # Helper functions
 │   ├── env.sh               # Runtime env injection for Docker
 │   ├── index.html
