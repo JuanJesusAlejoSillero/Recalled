@@ -103,6 +103,16 @@ with app.app_context():
             conn.commit()
         print("✓ created_by column added to places table")
 
+    # Add totp_last_counter to users table (replay prevention)
+    user_columns = [col["name"] for col in inspector.get_columns("users")]
+    if "totp_last_counter" not in user_columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE users ADD COLUMN totp_last_counter INTEGER"
+            ))
+            conn.commit()
+        print("✓ totp_last_counter column added to users table")
+
     print("✓ Base de datos verificada")
 
     # Crear usuario administrador si no existe

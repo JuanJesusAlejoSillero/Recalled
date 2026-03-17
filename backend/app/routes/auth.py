@@ -2,6 +2,7 @@
 
 import base64
 import io
+import time
 from datetime import timedelta
 
 import bcrypt
@@ -29,6 +30,19 @@ from app.schemas.user_schema import (
 )
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _verify_totp_strict(user, code):
+    """Verify TOTP code with strict timing and replay prevention."""
+    totp = pyotp.TOTP(user.totp_secret)
+    if not totp.verify(code, valid_window=0):
+        return False
+    current_counter = int(time.time()) // 30
+    if user.totp_last_counter is not None and current_counter <= user.totp_last_counter:
+        return False
+    user.totp_last_counter = current_counter
+    return True
+
 
 # Pre-computed hash used when the user does not exist, so that the response time
 # is indistinguishable from a real password check (prevents user enumeration via
@@ -151,7 +165,7 @@ def confirm_2fa_setup(validated_data):
         return jsonify({"error": "2FA setup not initiated"}), 400
 
     totp = pyotp.TOTP(user.totp_secret)
-    if not totp.verify(validated_data["totp_code"], valid_window=1):
+    if not totp.verify(validated_data["totp_code"], valid_window=0):
         return jsonify({"error": "Invalid TOTP code"}), 401
 
     user.totp_enabled = True
@@ -179,12 +193,12 @@ def disable_2fa(validated_data):
     if not user.check_password(validated_data["password"]):
         return jsonify({"error": "Invalid password"}), 401
 
-    totp = pyotp.TOTP(user.totp_secret)
-    if not totp.verify(validated_data["totp_code"], valid_window=1):
+    if not _verify_totp_strict(user, validated_data["totp_code"]):
         return jsonify({"error": "Invalid TOTP code"}), 401
 
     user.totp_secret = None
     user.totp_enabled = False
+    user.totp_last_counter = None
     db.session.commit()
 
     return jsonify({
@@ -209,9 +223,10 @@ def verify_2fa(validated_data):
     if not user or not user.totp_enabled:
         return jsonify({"error": "Invalid request"}), 400
 
-    totp = pyotp.TOTP(user.totp_secret)
-    if not totp.verify(validated_data["totp_code"], valid_window=1):
+    if not _verify_totp_strict(user, validated_data["totp_code"]):
         return jsonify({"error": "Invalid TOTP code"}), 401
+
+    db.session.commit()
 
     access_token = create_access_token(identity=str(user.id))
     refresh_token = create_refresh_token(identity=str(user.id))

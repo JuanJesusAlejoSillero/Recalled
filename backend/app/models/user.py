@@ -28,6 +28,7 @@ class User(db.Model):
     # 2FA (TOTP)
     totp_secret = db.Column(db.String(32), nullable=True)
     totp_enabled = db.Column(db.Boolean, default=False, nullable=False)
+    totp_last_counter = db.Column(db.Integer, nullable=True)
 
     # Relationships
     reviews = db.relationship(
