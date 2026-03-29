@@ -36,28 +36,40 @@ function ImageUploader({ onFilesSelected, maxFiles = 5 }) {
 
   return (
     <div>
-      <div
-        onDrop={handleDrop}
-        onDragOver={(e) => e.preventDefault()}
-        onClick={() => fileInputRef.current?.click()}
-        className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
-      >
-        <FiUpload className="w-8 h-8 mx-auto text-gray-400 dark:text-gray-500 mb-2" />
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t('imageUploader.dragOrSelect')}<span className="text-primary-600 dark:text-primary-400 font-medium">{t('imageUploader.selectFiles')}</span>
-        </p>
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-          {t('imageUploader.fileInfo', { count: previews.length, maxFiles })}
-        </p>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          onChange={(e) => handleFiles(e.target.files)}
-          className="hidden"
-        />
+      <div className="flex items-center justify-between mb-2">
+        <span className={`text-xs font-medium ${
+          previews.length >= maxFiles
+            ? 'text-amber-600 dark:text-amber-400'
+            : 'text-gray-500 dark:text-gray-400'
+        }`}>
+          {t('imageUploader.counter', { count: previews.length, max: maxFiles })}
+        </span>
       </div>
+
+      {previews.length < maxFiles && (
+        <div
+          onDrop={handleDrop}
+          onDragOver={(e) => e.preventDefault()}
+          onClick={() => fileInputRef.current?.click()}
+          className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center cursor-pointer hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
+        >
+          <FiUpload className="w-8 h-8 mx-auto text-gray-400 dark:text-gray-500 mb-2" />
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t('imageUploader.dragOrSelect')}<span className="text-primary-600 dark:text-primary-400 font-medium">{t('imageUploader.selectFiles')}</span>
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            {t('imageUploader.fileInfo')}
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            onChange={(e) => handleFiles(e.target.files)}
+            className="hidden"
+          />
+        </div>
+      )}
 
       {previews.length > 0 && (
         <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mt-4">

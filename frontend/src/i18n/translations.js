@@ -130,6 +130,7 @@ const translations = {
       editTitle: 'Editar Review',
       newTitle: 'Nueva Review',
       errorSave: 'Error al guardar review',
+      somePhotosFailed: 'La review se ha guardado, pero {count} de {total} fotos no se pudieron subir ({names}). Puedes editarla para intentarlo de nuevo.',
     },
 
     // Review form
@@ -178,7 +179,8 @@ const translations = {
     imageUploader: {
       dragOrSelect: 'Arrastra fotos aquí o ',
       selectFiles: 'selecciona archivos',
-      fileInfo: 'JPG, PNG, WEBP - Max 5MB por foto ({count}/{maxFiles})',
+      fileInfo: 'JPG, PNG, WEBP',
+      counter: '{count}/{max} fotos',
     },
 
     // Admin
@@ -421,6 +423,7 @@ const translations = {
       editTitle: 'Edit Review',
       newTitle: 'New Review',
       errorSave: 'Error saving review',
+      somePhotosFailed: 'The review was saved, but {count} of {total} photos could not be uploaded ({names}). You can edit it to try again.',
     },
 
     reviewForm: {
@@ -466,7 +469,8 @@ const translations = {
     imageUploader: {
       dragOrSelect: 'Drag photos here or ',
       selectFiles: 'select files',
-      fileInfo: 'JPG, PNG, WEBP - Max 5MB per photo ({count}/{maxFiles})',
+      fileInfo: 'JPG, PNG, WEBP',
+      counter: '{count}/{max} photos',
     },
 
     admin: {

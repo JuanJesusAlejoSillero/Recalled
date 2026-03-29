@@ -45,6 +45,8 @@ function CreateReviewPage() {
     setLoading(true);
     isSubmitting.current = true;
     try {
+      let reviewId = id;
+
       if (id) {
         // Update
         await reviewsAPI.update(id, data);
@@ -53,28 +55,30 @@ function CreateReviewPage() {
         for (const photoId of photosToDelete) {
           await reviewsAPI.deletePhoto(id, photoId);
         }
-
-        // Upload new photos if any
-        if (photos?.length > 0) {
-          const formData = new FormData();
-          photos.forEach((file) => formData.append('photos', file));
-          await reviewsAPI.uploadPhotos(id, formData);
-        }
-
-        navigate('/my-reviews');
       } else {
         // Create - backend handles place creation atomically if place_name is provided
         const { data: review } = await reviewsAPI.create(data);
-
-        // Upload photos if any
-        if (photos?.length > 0) {
-          const formData = new FormData();
-          photos.forEach((file) => formData.append('photos', file));
-          await reviewsAPI.uploadPhotos(review.id, formData);
-        }
-
-        navigate('/my-reviews');
+        reviewId = review.id;
       }
+
+      // Upload photos one by one to avoid request size limits
+      if (photos?.length > 0) {
+        const failed = [];
+        for (const file of photos) {
+          try {
+            const formData = new FormData();
+            formData.append('photos', file);
+            await reviewsAPI.uploadPhotos(reviewId, formData);
+          } catch {
+            failed.push(file.name);
+          }
+        }
+        if (failed.length > 0) {
+          alert(t('reviewPage.somePhotosFailed', { count: failed.length, total: photos.length, names: failed.join(', ') }));
+        }
+      }
+
+      navigate('/my-reviews');
     } catch (err) {
       isSubmitting.current = false;
       alert(err.response?.data?.error || t('reviewPage.errorSave'));

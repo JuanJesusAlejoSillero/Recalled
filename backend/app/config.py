@@ -35,8 +35,8 @@ class Config:
     # File uploads
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "/app/uploads")
     MAX_CONTENT_LENGTH = int(
-        os.environ.get("MAX_CONTENT_LENGTH", 5242880)
-    )  # 5MB
+        os.environ.get("MAX_CONTENT_LENGTH", 52428800)
+    )  # 50MB (multiple photo uploads)
     ALLOWED_EXTENSIONS = set(
         os.environ.get("ALLOWED_EXTENSIONS", "jpg,jpeg,png,webp").split(",")
     )
