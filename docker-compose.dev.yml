@@ -41,6 +41,7 @@ services:
     restart: unless-stopped
     environment:
       - VITE_API_URL=${VITE_API_URL:-/api/v1}
+      - ENABLE_MAP=${ENABLE_MAP:-true}
     ports:
       - "${APP_DEV_PORT:-8091}:80"
     depends_on:

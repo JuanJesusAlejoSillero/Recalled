@@ -10,6 +10,7 @@ const translations = {
       logout: 'Salir',
       openMenu: 'Abrir menú',
       settings: 'Ajustes',
+      map: 'Mapa',
     },
 
     // Login
@@ -297,6 +298,13 @@ const translations = {
         error: 'Error al eliminar cuenta',
       },
     },
+
+    // Map
+    map: {
+      title: 'Mapa de lugares',
+      subtitle: '{count} lugares con ubicación',
+      noPlaces: 'No hay lugares con coordenadas. Añade latitud y longitud a tus lugares para verlos en el mapa.',
+    },
   },
 
   en: {
@@ -309,6 +317,7 @@ const translations = {
       logout: 'Log out',
       openMenu: 'Open menu',
       settings: 'Settings',
+      map: 'Map',
     },
 
     login: {
@@ -580,6 +589,13 @@ const translations = {
         cancel: 'Cancel',
         error: 'Error deleting account',
       },
+    },
+
+    // Map
+    map: {
+      title: 'Places map',
+      subtitle: '{count} places with location',
+      noPlaces: 'No places with coordinates. Add latitude and longitude to your places to see them on the map.',
     },
   },
 };

@@ -10,6 +10,7 @@ CONFIG_FILE="/usr/share/nginx/html/env-config.js"
 cat <<EOF > $CONFIG_FILE
 window.ENV = {
   VITE_API_URL: "${VITE_API_URL:-/api/v1}",
+  ENABLE_MAP: "${ENABLE_MAP:-false}",
 };
 EOF
 

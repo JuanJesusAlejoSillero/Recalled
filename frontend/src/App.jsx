@@ -10,6 +10,9 @@ import MyReviewsPage from './pages/MyReviewsPage';
 import CreateReviewPage from './pages/CreateReviewPage';
 import AdminPage from './pages/AdminPage';
 import SettingsPage from './pages/SettingsPage';
+import MapPage from './pages/MapPage';
+
+const isMapEnabled = window.ENV?.ENABLE_MAP === 'true';
 
 function App() {
   const { user, loading } = useAuth();
@@ -35,6 +38,7 @@ function App() {
           <Route path="/reviews/new" element={<ProtectedRoute><CreateReviewPage /></ProtectedRoute>} />
           <Route path="/reviews/:id/edit" element={<ProtectedRoute><CreateReviewPage /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+          {isMapEnabled && <Route path="/map" element={<ProtectedRoute><MapPage /></ProtectedRoute>} />}
           <Route path="/admin" element={<ProtectedRoute adminOnly><AdminPage /></ProtectedRoute>} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

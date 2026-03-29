@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiHome, FiMapPin, FiStar, FiPlus, FiSettings, FiLogOut, FiMenu, FiX } from 'react-icons/fi';
+import { FiHome, FiMapPin, FiStar, FiPlus, FiSettings, FiLogOut, FiMenu, FiX, FiGlobe } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../context/LanguageContext';
 import ThemeToggle from './ThemeToggle';
@@ -12,6 +12,7 @@ function Navbar() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const isMapEnabled = window.ENV?.ENABLE_MAP === 'true';
 
   const handleLogout = async () => {
     await logout();
@@ -43,6 +44,12 @@ function Navbar() {
                 <FiStar className="w-4 h-4" />
                 <span>{t('nav.myReviews')}</span>
               </Link>
+              {isMapEnabled && (
+                <Link to="/map" className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
+                  <FiGlobe className="w-4 h-4" />
+                  <span>{t('nav.map')}</span>
+                </Link>
+              )}
               <Link to="/reviews/new" className="flex items-center space-x-1 bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-sm font-medium">
                 <FiPlus className="w-4 h-4" />
                 <span>{t('nav.newReview')}</span>
@@ -97,6 +104,12 @@ function Navbar() {
               <FiStar className="w-5 h-5" />
               <span>{t('nav.myReviews')}</span>
             </Link>
+            {isMapEnabled && (
+              <Link to="/map" onClick={closeMobileMenu} className="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-base font-medium">
+                <FiGlobe className="w-5 h-5" />
+                <span>{t('nav.map')}</span>
+              </Link>
+            )}
             <Link to="/reviews/new" onClick={closeMobileMenu} className="flex items-center space-x-3 bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-base font-medium">
               <FiPlus className="w-5 h-5" />
               <span>{t('nav.newReview')}</span>

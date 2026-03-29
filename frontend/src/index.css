@@ -27,3 +27,12 @@ html {
 html.dark {
   color-scheme: dark;
 }
+
+/* Fix Leaflet tiles broken by Tailwind's CSS reset (img max-width: 100%) */
+.leaflet-container img {
+  max-width: none !important;
+  max-height: none !important;
+}
+.leaflet-container .leaflet-pane {
+  z-index: 1;
+}
