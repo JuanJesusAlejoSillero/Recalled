@@ -11,6 +11,7 @@ function LoginForm() {
   const [twoFactorStep, setTwoFactorStep] = useState(false);
   const [tempToken, setTempToken] = useState(null);
   const [totpCode, setTotpCode] = useState('');
+  const [savedUsername, setSavedUsername] = useState('');
   const { register, handleSubmit, formState: { errors } } = useForm();
 
   const onSubmit = async (data) => {
@@ -19,6 +20,7 @@ function LoginForm() {
     try {
       const result = await login(data.username, data.password);
       if (result?.twoFactorRequired) {
+        setSavedUsername(data.username);
         setTempToken(result.tempToken);
         setTwoFactorStep(true);
       }
@@ -45,6 +47,7 @@ function LoginForm() {
   if (twoFactorStep) {
     return (
       <form onSubmit={onVerify2FA} className="space-y-6">
+        <input type="hidden" name="username" autoComplete="username" value={savedUsername} readOnly />
         {error && (
           <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg text-sm">
             {error}
@@ -62,6 +65,7 @@ function LoginForm() {
           </label>
           <input
             id="totp_code"
+            name="otp"
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
@@ -84,7 +88,7 @@ function LoginForm() {
 
         <button
           type="button"
-          onClick={() => { setTwoFactorStep(false); setTempToken(null); setTotpCode(''); setError(''); }}
+          onClick={() => { setTwoFactorStep(false); setTempToken(null); setTotpCode(''); setSavedUsername(''); setError(''); }}
           className="w-full text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
         >
           {t('login.twoFactorBack')}
