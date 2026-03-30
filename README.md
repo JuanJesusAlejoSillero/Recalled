@@ -19,6 +19,7 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Personal dashboard** - Your stats, recent reviews, and top-rated places
 - **Settings** - Change username, password, enable/disable 2FA, and delete account
 - **Version badge** - Displays app version in navbar (baked at Docker build time)
+- **World map** - Optional interactive map showing all your visited places (configurable via `ENABLE_MAP`), with address geocoding via Nominatim so you don't need to enter coordinates manually
 - **Dark mode** - Toggle between light and dark themes
 - **Multi-language** - Spanish and English with automatic browser detection
 - **Responsive** - Mobile-friendly with hamburger menu navigation
@@ -84,8 +85,9 @@ All configuration is done through the `.env` file. See [.env.example](.env.examp
 | `IMAGE_TAG`          | `latest`            | Docker image tag (e.g. `1.0.0`)                      |
 | `ADMIN_USERNAME`     | `admin`             | Admin username                                       |
 | `CORS_ORIGINS`       | `http://localhost`  | Allowed CORS origins (comma-separated)               |
-| `MAX_CONTENT_LENGTH` | `5242880`           | Max upload size in bytes (5 MB)                      |
+| `MAX_CONTENT_LENGTH` | `52428800`          | Max upload size in bytes (50 MB)                     |
 | `ALLOWED_EXTENSIONS` | `jpg,jpeg,png,webp` | Allowed file extensions for uploads                  |
+| `ENABLE_MAP`         | `false`             | Enable the world map page (Leaflet + OpenStreetMap)  |
 
 ## Project Structure
 
@@ -219,6 +221,19 @@ To expose Recalled with a custom domain and HTTPS, place a reverse proxy in fron
 ## Contributing
 
 Contributions are welcome! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a pull request.
+
+## Third-party Services
+
+When the world map feature is enabled (`ENABLE_MAP=true`), Recalled uses the following external services:
+
+- **[OpenStreetMap](https://www.openstreetmap.org/)** - Map tiles rendered in the places map. Data licensed under the [Open Database License (ODbL)](https://www.openstreetmap.org/copyright). Attribution is displayed directly on the map as required.
+- **[Nominatim](https://nominatim.openstreetmap.org/)** (OpenStreetMap Foundation) - Geocoding service used to find coordinates from an address when creating a place. Used in accordance with the [Nominatim Usage Policy](https://operations.osmfoundation.org/policies/nominatim/) (user-triggered requests only, no autocomplete, attribution displayed with results).
+
+Neither service requires an API key. Both are free, community-powered, and governed by the [OSMF Terms of Use](https://wiki.osmfoundation.org/wiki/Terms_of_Use).
+
+Please be mindful of the usage policies and avoid sending automated or bulk requests to these services. The map feature is designed for personal use with reasonable request rates.
+
+Also consider donating to the OpenStreetMap Foundation, as they rely on volunteer contributions and donations to operate. You can donate at <https://supporting.openstreetmap.org/donate/>.
 
 ## License
 

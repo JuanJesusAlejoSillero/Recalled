@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
 import { usersAPI } from '../../services/api';
 import { useNavigationPrompt } from '../../hooks/useNavigationPrompt';
+import { FiSearch } from 'react-icons/fi';
 
 const CATEGORY_KEYS = [
   'restaurant', 'hotel', 'museum', 'park', 'beach',
@@ -17,7 +18,7 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
   const [owner, setOwner] = useState(initialData?.created_by || '');
   const [users, setUsers] = useState([]);
   const isSubmitting = useRef(false);
-  const { register, handleSubmit, watch, formState: { errors } } = useForm({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm({
     defaultValues: {
       name: initialData?.name || '',
       address: initialData?.address || '',
@@ -64,6 +65,46 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
     }
   }, [user?.is_admin, initialData]);
 
+  // Geocoding state
+  const [geocodeResults, setGeocodeResults] = useState([]);
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeSearched, setGeocodeSearched] = useState(false);
+
+  const handleGeocode = async () => {
+    const address = watch('address');
+    if (!address?.trim()) return;
+
+    setGeocoding(true);
+    setGeocodeResults([]);
+    setGeocodeSearched(true);
+
+    try {
+      const params = new URLSearchParams({
+        q: address.trim(),
+        format: 'json',
+        limit: '5',
+        addressdetails: '1',
+      });
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params}`, {
+        headers: { 'Accept-Language': navigator.language || 'en' },
+      });
+      const data = await res.json();
+      setGeocodeResults(data);
+    } catch {
+      setGeocodeResults([]);
+    } finally {
+      setGeocoding(false);
+    }
+  };
+
+  const selectGeocodeResult = (result) => {
+    setValue('latitude', parseFloat(result.lat), { shouldDirty: true });
+    setValue('longitude', parseFloat(result.lon), { shouldDirty: true });
+    setValue('address', result.display_name, { shouldDirty: true });
+    setGeocodeResults([]);
+    setGeocodeSearched(false);
+  };
+
   const onFormSubmit = (data) => {
     isSubmitting.current = true;
     const payload = {
@@ -102,12 +143,46 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
 
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('placeForm.address')}</label>
-        <input
-          type="text"
-          {...register('address')}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          placeholder={t('placeForm.addressPlaceholder')}
-        />
+        <div className="flex gap-2">
+          <input
+            type="text"
+            {...register('address')}
+            className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            placeholder={t('placeForm.addressPlaceholder')}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGeocode(); } }}
+          />
+          <button
+            type="button"
+            onClick={handleGeocode}
+            disabled={geocoding}
+            className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-1 shrink-0"
+            title={t('placeForm.searchAddress')}
+          >
+            <FiSearch className="w-4 h-4" />
+            <span className="hidden sm:inline">{geocoding ? t('placeForm.searching') : t('placeForm.searchAddress')}</span>
+          </button>
+        </div>
+        {geocodeResults.length > 0 && (
+          <ul className="mt-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 shadow-lg max-h-48 overflow-y-auto">
+            {geocodeResults.map((result) => (
+              <li
+                key={result.place_id}
+                onClick={() => selectGeocodeResult(result)}
+                className="px-3 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-gray-600 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-b-0"
+              >
+                {result.display_name}
+              </li>
+            ))}
+          </ul>
+        )}
+        {geocodeSearched && !geocoding && geocodeResults.length === 0 && (
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('placeForm.noResults')}</p>
+        )}
+        {(geocodeResults.length > 0 || geocodeSearched) && (
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">OpenStreetMap</a> contributors
+          </p>
+        )}
       </div>
 
       <div>
