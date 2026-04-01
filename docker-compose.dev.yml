@@ -29,6 +29,7 @@ services:
       - "ADMIN_USERNAME=${ADMIN_USERNAME:-admin}"
       - "ADMIN_PASSWORD=${ADMIN_PASSWORD:?ERROR: ADMIN_PASSWORD is required. Set a strong password in .env}"
       - "CORS_ORIGINS=${CORS_ORIGINS:-https://localhost}"
+      - "PROXY_FIX_X_FOR=${PROXY_FIX_X_FOR:-1}"
       - "AUTH_LOGIN_RATE_LIMIT=${AUTH_LOGIN_RATE_LIMIT:-5/minute}"
       - "AUTH_2FA_RATE_LIMIT=${AUTH_2FA_RATE_LIMIT:-10/minute}"
       - "AUTH_REFRESH_RATE_LIMIT=${AUTH_REFRESH_RATE_LIMIT:-30/minute}"

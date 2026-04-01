@@ -17,10 +17,35 @@ class Config:
             return default
         return value.strip().lower() in {"1", "true", "yes", "on"}
 
+    @staticmethod
+    def _get_int(name: str, default: int) -> int:
+        value = os.environ.get(name)
+        if value is None:
+            return default
+        try:
+            return int(value)
+        except ValueError as exc:
+            raise RuntimeError(f"{name} environment variable must be an integer") from exc
+
+    @staticmethod
+    def _get_samesite(name: str, default: str = "Lax") -> str:
+        value = os.environ.get(name, default).strip()
+        normalized = value.lower()
+        if normalized == "none":
+            return "None"
+        if normalized == "lax":
+            return "Lax"
+        if normalized == "strict":
+            return "Strict"
+        raise RuntimeError(
+            f"{name} environment variable must be one of: Lax, Strict, None"
+        )
+
     # Flask
     SECRET_KEY = os.environ.get("SECRET_KEY")
     if not SECRET_KEY:
         raise RuntimeError("SECRET_KEY environment variable is required")
+    PROXY_FIX_X_FOR = _get_int.__func__("PROXY_FIX_X_FOR", 1)
 
     # Database - use an absolute path to avoid Flask instance_path issues
     SQLALCHEMY_DATABASE_URI = os.environ.get(
@@ -37,7 +62,12 @@ class Config:
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
     JWT_TOKEN_LOCATION = ["cookies"]
     JWT_COOKIE_SECURE = _get_bool.__func__("JWT_COOKIE_SECURE", False)
-    JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "Lax")
+    JWT_COOKIE_SAMESITE = _get_samesite.__func__("JWT_COOKIE_SAMESITE", "Lax")
+    if JWT_COOKIE_SAMESITE == "None" and not JWT_COOKIE_SECURE:
+        raise RuntimeError(
+            "JWT_COOKIE_SAMESITE=None requires JWT_COOKIE_SECURE=true. "
+            "Use JWT_COOKIE_SAMESITE=Lax or Strict for plain HTTP development."
+        )
     JWT_COOKIE_CSRF_PROTECT = True
     JWT_SESSION_COOKIE = False
     JWT_ACCESS_COOKIE_PATH = "/api/"

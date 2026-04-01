@@ -20,11 +20,17 @@ limiter = Limiter(key_func=get_remote_address, default_limits=[])
 def create_app():
     """Create and configure the Flask application."""
     app = Flask(__name__)
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
     # Load configuration
     from app.config import Config
     app.config.from_object(Config)
+
+    app.wsgi_app = ProxyFix(
+        app.wsgi_app,
+        x_for=app.config["PROXY_FIX_X_FOR"],
+        x_proto=1,
+        x_host=1,
+    )
 
     # Initialize extensions
     db.init_app(app)
