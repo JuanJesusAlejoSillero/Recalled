@@ -30,7 +30,7 @@ class ReviewPhoto(db.Model):
             "filename": self.filename,
             "original_filename": self.original_filename,
             "file_size": self.file_size,
-            "url": f"/uploads/photos/{self.filename}",
+            "url": f"/api/v1/media/photos/{self.filename}",
             "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
         }
 

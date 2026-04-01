@@ -2,17 +2,66 @@ import axios from 'axios';
 
 // Get API URL from runtime config (injected by env.sh) or build-time env
 const API_URL = window.ENV?.VITE_API_URL || import.meta.env.VITE_API_URL || '/api/v1';
+const CSRF_HEADER_NAME = 'X-CSRF-TOKEN';
+const MUTATING_METHODS = new Set(['post', 'put', 'patch', 'delete']);
+
+function getCookie(name) {
+  const cookie = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(`${name}=`));
+
+  if (!cookie) {
+    return null;
+  }
+
+  return decodeURIComponent(cookie.split('=').slice(1).join('='));
+}
+
+function getCsrfToken(url, method) {
+  if (!method || !MUTATING_METHODS.has(method.toLowerCase())) {
+    return null;
+  }
+
+  const cookieName = url?.includes('/auth/refresh')
+    ? 'csrf_refresh_token'
+    : 'csrf_access_token';
+
+  return getCookie(cookieName);
+}
+
+function redirectToLogin() {
+  if (window.location.pathname !== '/login') {
+    window.location.href = '/login';
+  }
+}
+
+async function refreshSession() {
+  const csrfToken = getCookie('csrf_refresh_token');
+  if (!csrfToken) {
+    throw new Error('No refresh token cookie available');
+  }
+
+  return axios.post(`${API_URL}/auth/refresh`, null, {
+    withCredentials: true,
+    headers: { [CSRF_HEADER_NAME]: csrfToken },
+  });
+}
+
+export function hasAuthSessionCookie() {
+  return Boolean(getCookie('csrf_access_token') || getCookie('csrf_refresh_token'));
+}
 
 const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Request interceptor - attach JWT token
+// Request interceptor - attach CSRF token for cookie-based auth
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('access_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  const csrfToken = getCsrfToken(config.url, config.method);
+  if (csrfToken) {
+    config.headers[CSRF_HEADER_NAME] = csrfToken;
   }
   return config;
 });
@@ -23,31 +72,28 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    if (!originalRequest) {
+      return Promise.reject(error);
+    }
+
     // No interceptar 401 del login ni del refresh (solo de endpoints protegidos)
     const isAuthEndpoint = originalRequest.url?.includes('/auth/login')
-      || originalRequest.url?.includes('/auth/refresh');
+      || originalRequest.url?.includes('/auth/refresh')
+      || originalRequest.url?.includes('/auth/2fa/verify');
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
-      const refreshToken = localStorage.getItem('refresh_token');
 
-      if (refreshToken) {
+      if (hasAuthSessionCookie()) {
         try {
-          const { data } = await axios.post(`${API_URL}/auth/refresh`, null, {
-            headers: { Authorization: `Bearer ${refreshToken}` },
-          });
-          localStorage.setItem('access_token', data.access_token);
-          originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
+          await refreshSession();
           return api(originalRequest);
         } catch {
-          localStorage.removeItem('access_token');
-          localStorage.removeItem('refresh_token');
-          window.location.href = '/login';
+          redirectToLogin();
         }
-      } else {
-        localStorage.removeItem('access_token');
-        window.location.href = '/login';
       }
+
+      redirectToLogin();
     }
 
     return Promise.reject(error);

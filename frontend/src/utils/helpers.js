@@ -23,7 +23,7 @@ export function truncate(text, maxLength = 100) {
  */
 export function getThumbnailUrl(photo) {
   if (!photo?.filename) return '';
-  return `/uploads/photos/thumbnails/${photo.filename}`;
+  return `/api/v1/media/photos/thumbnails/${photo.filename}`;
 }
 
 /**
@@ -31,5 +31,5 @@ export function getThumbnailUrl(photo) {
  */
 export function getPhotoUrl(photo) {
   if (!photo?.filename) return '';
-  return `/uploads/photos/${photo.filename}`;
+  return `/api/v1/media/photos/${photo.filename}`;
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-# Script de inicialización del backend
-# Se ejecuta cuando el contenedor de Docker arranca
+# Backend initialization script
+# Executed when the Docker container starts
 
 set -e
 
@@ -9,17 +9,17 @@ echo "=========================================="
 echo "Iniciando Recalled Backend"
 echo "=========================================="
 
-# Esperar un momento para asegurar que los directorios están montados
+# Wait briefly to ensure mounted directories are available
 sleep 2
 
-# Verificar que los directorios necesarios existen
+# Ensure required directories exist
 echo "Verificando directorios..."
 mkdir -p /app/data /app/uploads/photos /app/logs
 
-# Establecer permisos correctos
+# Set correct permissions
 chmod -R 755 /app/uploads /app/data /app/logs
 
-# Inicializar la base de datos y asegurar que el admin existe
+# Initialize the database and ensure the admin account exists
 python << END
 from app import create_app, db
 from app.models.user import User
@@ -27,7 +27,7 @@ import os
 
 app = create_app()
 with app.app_context():
-    # Crear todas las tablas (no hace nada si ya existen)
+    # Create all tables (no-op if they already exist)
     db.create_all()
 
     # Add TOTP columns to existing databases
@@ -115,7 +115,7 @@ with app.app_context():
 
     print("✓ Base de datos verificada")
 
-    # Crear usuario administrador si no existe
+    # Create the administrator user if it does not exist
     admin_username = os.getenv('ADMIN_USERNAME', 'admin')
     admin_password = os.getenv('ADMIN_PASSWORD')
     if not admin_password:
@@ -142,7 +142,7 @@ echo "Configuración completada"
 echo "Iniciando servidor Flask..."
 echo "=========================================="
 
-# Iniciar la aplicación Flask con Gunicorn para producción
+# Start the Flask application with Gunicorn in production
 if [ "$FLASK_ENV" = "production" ]; then
     echo "Modo: PRODUCCIÓN"
     exec gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 --access-logfile /app/logs/access.log --error-logfile /app/logs/error.log "run:app"

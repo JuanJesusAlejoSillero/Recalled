@@ -1,10 +1,14 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { FiLock } from 'react-icons/fi';
 import { authAPI } from '../../services/api';
+import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../context/LanguageContext';
 
 function ChangePassword() {
+  const { logout } = useAuth();
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -24,14 +28,16 @@ function ChangePassword() {
 
     setLoading(true);
     try {
-      await authAPI.changePassword({
+      const { data } = await authAPI.changePassword({
         current_password: currentPassword,
         new_password: newPassword,
       });
-      setSuccess(t('settings.password.success'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      setSuccess(data.message || t('settings.password.success'));
+      await logout();
+      navigate('/login', { replace: true });
     } catch (err) {
       setError(err.response?.data?.error || t('settings.password.error'));
     } finally {

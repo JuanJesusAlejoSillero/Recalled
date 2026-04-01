@@ -12,17 +12,17 @@ export function ThemeProvider({ children }) {
     if (saved === 'light' || saved === 'dark') {
       setTheme(saved);
     } else {
-      // Autodetección del sistema operativo / navegador
+      // Auto-detect the operating system / browser preference
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       setTheme(prefersDark ? 'dark' : 'light');
     }
   }, []);
 
-  // Escuchar cambios en la preferencia del sistema
+  // Listen for system preference changes
   useEffect(() => {
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
     const handler = (e) => {
-      // Solo actualizar si el usuario no ha forzado un tema manualmente
+      // Only update automatically if the user has not chosen a theme manually
       if (!localStorage.getItem('theme')) {
         setTheme(e.matches ? 'dark' : 'light');
       }

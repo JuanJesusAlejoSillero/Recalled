@@ -15,10 +15,59 @@ from app.utils.file_handler import save_photo, delete_photo
 reviews_bp = Blueprint("reviews", __name__)
 
 
+def _place_visible_to_user(place, current_user) -> bool:
+    """Return whether a place is visible to the current user."""
+    if not place:
+        return False
+    if current_user and current_user.is_admin:
+        return True
+    if not place.is_private:
+        return True
+    return bool(current_user and place.created_by == current_user.id)
+
+
+def _review_visible_to_user(review, current_user) -> bool:
+    """Return whether a review is visible to the current user."""
+    if not review or not review.place:
+        return False
+    if current_user and current_user.is_admin:
+        return True
+    if not _place_visible_to_user(review.place, current_user):
+        return False
+    if not review.is_private:
+        return True
+    return bool(current_user and review.user_id == current_user.id)
+
+
+def _visible_reviews_query(current_user):
+    """Build a query that only returns reviews visible to the current user."""
+    query = Review.query.join(Place, Review.place_id == Place.id)
+
+    if current_user and current_user.is_admin:
+        return query
+
+    place_filters = [Place.is_private == False]
+    review_filters = [Review.is_private == False]
+
+    if current_user:
+        place_filters.append(Place.created_by == current_user.id)
+        review_filters.append(Review.user_id == current_user.id)
+
+    return query.filter(db.or_(*place_filters)).filter(db.or_(*review_filters))
+
+
+def _get_accessible_place(place_id, current_user):
+    """Return a place only when the current user is allowed to attach reviews to it."""
+    place = db.session.get(Place, place_id)
+    if not place or not _place_visible_to_user(place, current_user):
+        return None
+    return place
+
+
 @reviews_bp.route("", methods=["GET"])
 @jwt_required()
 def list_reviews():
-    """List all reviews with optional filters."""
+    """List only the reviews visible to the current user."""
     page = request.args.get("page", 1, type=int)
     per_page = request.args.get("per_page", 20, type=int)
     per_page = min(per_page, 100)
@@ -27,21 +76,12 @@ def list_reviews():
     place_id = request.args.get("place_id", type=int)
 
     current_user = get_current_user()
-    query = Review.query
+    query = _visible_reviews_query(current_user)
 
     if user_id:
         query = query.filter(Review.user_id == user_id)
     if place_id:
         query = query.filter(Review.place_id == place_id)
-
-    # Hide private reviews from other users (owner and admin can see them)
-    if current_user:
-        if not current_user.is_admin:
-            query = query.filter(
-                db.or_(Review.is_private == False, Review.user_id == current_user.id)
-            )
-    else:
-        query = query.filter(Review.is_private == False)
 
     pagination = query.order_by(Review.created_at.desc()).paginate(
         page=page, per_page=per_page, error_out=False
@@ -60,13 +100,11 @@ def list_reviews():
 @jwt_required()
 def get_review(review_id):
     """Get a specific review."""
-    review = Review.query.get_or_404(review_id, description="Review not found")
+    review = db.get_or_404(Review, review_id, description="Review not found")
 
-    # Private reviews only visible to owner or admin
-    if review.is_private:
-        current_user = get_current_user()
-        if not current_user or (review.user_id != current_user.id and not current_user.is_admin):
-            return jsonify({"error": "Review not found"}), 404
+    current_user = get_current_user()
+    if not _review_visible_to_user(review, current_user):
+        return jsonify({"error": "Review not found"}), 404
 
     return jsonify(review.to_dict()), 200
 
@@ -99,20 +137,30 @@ def create_review(validated_data):
     Accepts either place_id (existing place) or place_name (creates a new place
     in the same transaction) with optional place details.
     """
-    user_id = int(get_jwt_identity())
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({"error": "Authentication required"}), 401
+
+    user_id = current_user.id
 
     place_id = validated_data.pop("place_id", None)
     place_fields = _extract_place_fields(validated_data)
+    target_place = None
 
     if not place_id and not place_fields.get("name"):
         return jsonify({"error": "Provide place_id or place_name"}), 400
 
     if place_fields.get("name"):
         place_id = _create_inline_place(place_fields, user_id)
+        target_place = db.session.get(Place, place_id)
     else:
-        place = Place.query.get(place_id)
-        if not place:
+        target_place = _get_accessible_place(place_id, current_user)
+        if not target_place:
             return jsonify({"error": "Place not found"}), 404
+
+    review_is_private = validated_data.get("is_private", False)
+    if target_place and target_place.is_private:
+        review_is_private = True
 
     review = Review(
         user_id=user_id,
@@ -121,7 +169,7 @@ def create_review(validated_data):
         title=validated_data.get("title"),
         comment=validated_data.get("comment"),
         visit_date=validated_data.get("visit_date"),
-        is_private=validated_data.get("is_private", False),
+        is_private=review_is_private,
     )
 
     db.session.add(review)
@@ -139,15 +187,24 @@ def update_review(review_id, validated_data):
     if not current_user:
         return jsonify({"error": "Authentication required"}), 401
 
-    review = Review.query.get_or_404(review_id, description="Review not found")
+    review = db.get_or_404(Review, review_id, description="Review not found")
 
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403
 
     # Handle new place creation inline
+    target_place = review.place
     place_fields = _extract_place_fields(validated_data)
     if place_fields.get("name"):
         validated_data["place_id"] = _create_inline_place(place_fields, current_user.id)
+        target_place = db.session.get(Place, validated_data["place_id"])
+    elif "place_id" in validated_data:
+        target_place = _get_accessible_place(validated_data["place_id"], current_user)
+        if not target_place:
+            return jsonify({"error": "Place not found"}), 404
+
+    if target_place and target_place.is_private:
+        validated_data["is_private"] = True
 
     for key, value in validated_data.items():
         setattr(review, key, value)
@@ -169,7 +226,7 @@ def delete_review(review_id):
     if not current_user:
         return jsonify({"error": "Authentication required"}), 401
 
-    review = Review.query.get_or_404(review_id, description="Review not found")
+    review = db.get_or_404(Review, review_id, description="Review not found")
 
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403
@@ -210,7 +267,7 @@ def upload_photos(review_id):
     if not current_user:
         return jsonify({"error": "Authentication required"}), 401
 
-    review = Review.query.get_or_404(review_id, description="Review not found")
+    review = db.get_or_404(Review, review_id, description="Review not found")
 
     if review.user_id != current_user.id:
         return jsonify({"error": "Permission denied"}), 403
@@ -260,7 +317,7 @@ def delete_review_photo(review_id, photo_id):
     if not current_user:
         return jsonify({"error": "Authentication required"}), 401
 
-    review = Review.query.get_or_404(review_id, description="Review not found")
+    review = db.get_or_404(Review, review_id, description="Review not found")
 
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403

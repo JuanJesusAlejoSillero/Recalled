@@ -3,19 +3,26 @@
 import os
 from datetime import timedelta
 
-# Directorio base del backend (backend/)
+# Backend base directory (backend/)
 basedir = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
 
 class Config:
     """Flask application configuration."""
 
+    @staticmethod
+    def _get_bool(name: str, default: bool = False) -> bool:
+        value = os.environ.get(name)
+        if value is None:
+            return default
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+
     # Flask
     SECRET_KEY = os.environ.get("SECRET_KEY")
     if not SECRET_KEY:
         raise RuntimeError("SECRET_KEY environment variable is required")
 
-    # Database - ruta absoluta para evitar problemas con instance_path de Flask
+    # Database - use an absolute path to avoid Flask instance_path issues
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL",
         f"sqlite:///{os.path.join(basedir, 'data', 'reviews.db')}"
@@ -28,9 +35,22 @@ class Config:
         raise RuntimeError("JWT_SECRET_KEY environment variable is required")
     JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
     JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=7)
-    JWT_TOKEN_LOCATION = ["headers"]
-    JWT_HEADER_NAME = "Authorization"
-    JWT_HEADER_TYPE = "Bearer"
+    JWT_TOKEN_LOCATION = ["cookies"]
+    JWT_COOKIE_SECURE = _get_bool.__func__("JWT_COOKIE_SECURE", False)
+    JWT_COOKIE_SAMESITE = os.environ.get("JWT_COOKIE_SAMESITE", "Lax")
+    JWT_COOKIE_CSRF_PROTECT = True
+    JWT_SESSION_COOKIE = False
+    JWT_ACCESS_COOKIE_PATH = "/api/"
+    JWT_REFRESH_COOKIE_PATH = "/api/v1/auth/refresh"
+    JWT_ACCESS_CSRF_COOKIE_PATH = "/"
+    JWT_REFRESH_CSRF_COOKIE_PATH = "/"
+
+    # Auth hardening
+    AUTH_LOGIN_RATE_LIMIT = os.environ.get("AUTH_LOGIN_RATE_LIMIT", "5/minute")
+    AUTH_2FA_RATE_LIMIT = os.environ.get("AUTH_2FA_RATE_LIMIT", "10/minute")
+    AUTH_REFRESH_RATE_LIMIT = os.environ.get("AUTH_REFRESH_RATE_LIMIT", "30/minute")
+    RATELIMIT_STORAGE_URI = os.environ.get("RATELIMIT_STORAGE_URI", "memory://")
+    RATELIMIT_HEADERS_ENABLED = True
 
     # File uploads
     UPLOAD_FOLDER = os.environ.get("UPLOAD_FOLDER", "/app/uploads")

@@ -8,16 +8,15 @@ from datetime import timedelta
 import bcrypt
 import pyotp
 import qrcode
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify
 from flask_jwt_extended import (
     create_access_token,
-    create_refresh_token,
     decode_token,
     get_jwt_identity,
     jwt_required,
 )
 
-from app import db
+from app import db, limiter
 from app.middleware.validators import validate_json
 from app.models.user import User
 from app.schemas.user_schema import (
@@ -28,8 +27,17 @@ from app.schemas.user_schema import (
     TotpDisableSchema,
     TotpVerifySchema,
 )
+from app.utils.security import build_token_claims, clear_auth_cookies, set_auth_cookies
 
 auth_bp = Blueprint("auth", __name__)
+
+
+@auth_bp.after_request
+def add_no_store_headers(response):
+    """Prevent auth responses from being cached by browsers or proxies."""
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def _verify_totp_strict(user, code):
@@ -51,6 +59,7 @@ _DUMMY_HASH = bcrypt.hashpw(b"dummy", bcrypt.gensalt(rounds=12)).decode("utf-8")
 
 
 @auth_bp.route("/login", methods=["POST"])
+@limiter.limit(lambda: current_app.config["AUTH_LOGIN_RATE_LIMIT"])
 @validate_json(LoginSchema)
 def login(validated_data):
     """Authenticate a user and return JWT tokens."""
@@ -68,27 +77,26 @@ def login(validated_data):
         temp_token = create_access_token(
             identity=str(user.id),
             expires_delta=timedelta(minutes=5),
-            additional_claims={"purpose": "2fa_pending"},
+            additional_claims=build_token_claims(user, purpose="2fa_pending"),
         )
         return jsonify({"2fa_required": True, "temp_token": temp_token}), 200
 
-    access_token = create_access_token(identity=str(user.id))
-    refresh_token = create_refresh_token(identity=str(user.id))
-
-    return jsonify({
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "user": user.to_dict(),
-    }), 200
+    response = jsonify({"user": user.to_dict()})
+    return set_auth_cookies(response, user)
 
 
 @auth_bp.route("/refresh", methods=["POST"])
+@limiter.limit(lambda: current_app.config["AUTH_REFRESH_RATE_LIMIT"])
 @jwt_required(refresh=True)
 def refresh():
     """Refresh an access token."""
     user_id = get_jwt_identity()
-    access_token = create_access_token(identity=str(user_id))
-    return jsonify({"access_token": access_token}), 200
+    user = db.session.get(User, int(user_id))
+    if not user:
+        return jsonify({"error": "Token no longer valid"}), 401
+
+    response = jsonify({"message": "Session refreshed"})
+    return set_auth_cookies(response, user, include_refresh=False)
 
 
 @auth_bp.route("/me", methods=["GET"])
@@ -103,14 +111,14 @@ def me():
 
 
 @auth_bp.route("/logout", methods=["POST"])
-@jwt_required()
 def logout():
     """Log out the current user.
 
     Note: With stateless JWT, logout is handled on the client side by
     discarding the token. This endpoint exists for API completeness.
     """
-    return jsonify({"message": "Successfully logged out"}), 200
+    response = jsonify({"message": "Successfully logged out"})
+    return clear_auth_cookies(response)
 
 
 # ----- 2FA (TOTP) -----
@@ -171,10 +179,11 @@ def confirm_2fa_setup(validated_data):
     user.totp_enabled = True
     db.session.commit()
 
-    return jsonify({
+    response = jsonify({
         "message": "2FA enabled successfully",
         "user": user.to_dict(),
-    }), 200
+    })
+    return set_auth_cookies(response, user)
 
 
 @auth_bp.route("/2fa/disable", methods=["POST"])
@@ -201,13 +210,15 @@ def disable_2fa(validated_data):
     user.totp_last_counter = None
     db.session.commit()
 
-    return jsonify({
+    response = jsonify({
         "message": "2FA disabled successfully",
         "user": user.to_dict(),
-    }), 200
+    })
+    return set_auth_cookies(response, user)
 
 
 @auth_bp.route("/2fa/verify", methods=["POST"])
+@limiter.limit(lambda: current_app.config["AUTH_2FA_RATE_LIMIT"])
 @validate_json(TotpVerifySchema)
 def verify_2fa(validated_data):
     """Verify TOTP code during login and return JWT tokens."""
@@ -228,14 +239,8 @@ def verify_2fa(validated_data):
 
     db.session.commit()
 
-    access_token = create_access_token(identity=str(user.id))
-    refresh_token = create_refresh_token(identity=str(user.id))
-
-    return jsonify({
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "user": user.to_dict(),
-    }), 200
+    response = jsonify({"user": user.to_dict()})
+    return set_auth_cookies(response, user)
 
 
 # ----- Account management -----
@@ -257,7 +262,11 @@ def change_password(validated_data):
     user.set_password(validated_data["new_password"])
     db.session.commit()
 
-    return jsonify({"message": "Password changed successfully"}), 200
+    response = jsonify({
+        "message": "Password changed successfully",
+        "reauth_required": True,
+    })
+    return clear_auth_cookies(response)
 
 
 @auth_bp.route("/delete-account", methods=["POST"])
@@ -279,4 +288,5 @@ def delete_account(validated_data):
     db.session.delete(user)
     db.session.commit()
 
-    return jsonify({"message": "Account deleted successfully"}), 200
+    response = jsonify({"message": "Account deleted successfully"})
+    return clear_auth_cookies(response)

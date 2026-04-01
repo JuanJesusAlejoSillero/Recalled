@@ -6,7 +6,7 @@ A self-hosted web application to keep track of places you've visited and write r
 
 ## Features
 
-- **Authentication** - JWT-based login with access and refresh tokens
+- **Authentication** - JWT-based login with httpOnly cookie sessions and CSRF protection
 - **Two-factor authentication (2FA)** - TOTP-based with QR code and manual secret key
 - **Places** - Create, search, filter by category, and sort by rating
 - **Place ownership** - Track place creators, admin can reassign ownership
@@ -23,7 +23,7 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Dark mode** - Toggle between light and dark themes
 - **Multi-language** - Spanish and English with automatic browser detection
 - **Responsive** - Mobile-friendly with hamburger menu navigation
-- **Security hardened** - CSP headers, magic bytes image validation, decompression bomb protection, timing-safe login
+- **Security hardened** - CSP headers, magic bytes image validation, decompression bomb protection, timing-safe login, cookie-based auth with CSRF protection, Redis-backed auth rate limiting in Docker, and token invalidation after account changes
 
 ## Tech Stack
 
@@ -78,16 +78,25 @@ Open `http://localhost:8090` (or the port configured in `APP_PORT`) and log in w
 
 All configuration is done through the `.env` file. See [.env.example](.env.example) for all available options:
 
-| Variable             | Default             | Description                                          |
-|----------------------|---------------------|------------------------------------------------------|
-| `APP_PORT`           | `8090`              | Port for the production stack (`docker-compose.yml`) |
-| `APP_DEV_PORT`       | `8091`              | Port for the dev stack (`docker-compose.dev.yml`)    |
-| `IMAGE_TAG`          | `latest`            | Docker image tag (e.g. `1.0.0`)                      |
-| `ADMIN_USERNAME`     | `admin`             | Admin username                                       |
-| `CORS_ORIGINS`       | `http://localhost`  | Allowed CORS origins (comma-separated)               |
-| `MAX_CONTENT_LENGTH` | `52428800`          | Max upload size in bytes (50 MB)                     |
-| `ALLOWED_EXTENSIONS` | `jpg,jpeg,png,webp` | Allowed file extensions for uploads                  |
-| `ENABLE_MAP`         | `false`             | Enable the world map page (Leaflet + OpenStreetMap)  |
+| Variable                  | Default             | Description                                          |
+|---------------------------|---------------------|------------------------------------------------------|
+| `APP_PORT`                | `8090`              | Port for the production stack (`docker-compose.yml`) |
+| `APP_DEV_PORT`            | `8091`              | Port for the dev stack (`docker-compose.dev.yml`)    |
+| `IMAGE_TAG`               | `latest`            | Docker image tag (e.g. `1.0.0`)                      |
+| `ADMIN_USERNAME`          | `admin`             | Admin username                                       |
+| `CORS_ORIGINS`            | `http://localhost`  | Allowed CORS origins (comma-separated)               |
+| `MAX_CONTENT_LENGTH`      | `52428800`          | Max upload size in bytes (50 MB)                     |
+| `ALLOWED_EXTENSIONS`      | `jpg,jpeg,png,webp` | Allowed file extensions for uploads                  |
+| `AUTH_LOGIN_RATE_LIMIT`   | `5/minute`          | Rate limit for login attempts                        |
+| `AUTH_2FA_RATE_LIMIT`     | `10/minute`         | Rate limit for TOTP verification attempts            |
+| `AUTH_REFRESH_RATE_LIMIT` | `30/minute`         | Rate limit for refresh token usage                   |
+| `RATELIMIT_STORAGE_URI`   | `memory://`         | Storage backend for rate limits                      |
+| `JWT_COOKIE_SECURE`       | `false`             | Send auth cookies only over HTTPS                    |
+| `JWT_COOKIE_SAMESITE`     | `Lax`               | SameSite policy for auth cookies                     |
+| `ENABLE_MAP`              | `false`             | Enable the world map page (Leaflet + OpenStreetMap)  |
+
+For multi-worker deployments, point `RATELIMIT_STORAGE_URI` to Redis so auth rate limits are shared across workers.
+Set `JWT_COOKIE_SECURE=true` when the app is served over HTTPS.
 
 ## Project Structure
 

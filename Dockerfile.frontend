@@ -1,40 +1,40 @@
-# Dockerfile para Frontend (React + Nginx)
+# Frontend Dockerfile (React + Nginx)
 
-# Etapa 1: Build de la aplicación React
+# Stage 1: build the React application
 FROM node:24-alpine AS builder
 
 WORKDIR /app
 
-# Copiar archivos de dependencias
+# Copy dependency files
 COPY frontend/package*.json ./
 
-# Instalar dependencias
+# Install dependencies
 RUN npm install --package-lock-only && npm ci
 
-# Copiar código fuente
+# Copy source code
 COPY frontend/ .
 
-# Build de producción
+# Production build
 RUN npm run build
 
-# Etapa 2: Servidor Nginx
+# Stage 2: Nginx runtime
 FROM nginx:alpine
 
-# Eliminar configuración por defecto de Nginx
-RUN rm /etc/nginx/conf.d/default.conf
+# Remove the default Nginx config
+RUN rm -f /etc/nginx/conf.d/default.conf
 
-# Copiar configuración personalizada de Nginx
+# Copy custom Nginx config
 COPY nginx/nginx.conf /etc/nginx/conf.d/
 
-# Copiar archivos build desde la etapa anterior
+# Copy build artifacts from the previous stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copiar script de inicio para inyectar variables de entorno en runtime
+# Copy the startup script used to inject runtime environment variables
 COPY frontend/env.sh /docker-entrypoint.d/env.sh
 RUN chmod +x /docker-entrypoint.d/env.sh
 
-# Exponer puerto 80
+# Expose port 80
 EXPOSE 80
 
-# Nginx se inicia automáticamente con la imagen base
+# Nginx starts automatically with the base image
 CMD ["nginx", "-g", "daemon off;"]

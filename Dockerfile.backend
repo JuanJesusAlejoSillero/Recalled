@@ -1,45 +1,59 @@
-# Dockerfile para Backend (Flask)
-FROM python:3.11-slim
+# Backend Dockerfile (Flask)
+FROM python:3.11-slim AS builder
 
-# Establecer directorio de trabajo
-WORKDIR /app
+WORKDIR /build
 
-# Instalar dependencias del sistema
-RUN apt-get update && apt-get install -y \
+# Install only the system dependencies needed to build wheels
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar archivos de dependencias
+# Copy dependency files
 COPY backend/requirements.txt .
 
-# Instalar dependencias de Python
-RUN pip install --no-cache-dir -r requirements.txt
+# Build wheels so the final runtime image does not need the toolchain
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY backend/requirements.txt .
+COPY --from=builder /wheels /wheels
+
+# Install Python dependencies without hitting external indexes at runtime
+RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
+    && rm -rf /wheels
 
 # App version (injected at build time by CI/CD, not overridable at runtime)
 ARG APP_VERSION=dev
 
-# Copiar código de la aplicación
+# Copy application code
 COPY backend/ .
 
 # Write version to a file inside the image
 RUN echo "$APP_VERSION" > /app/VERSION
 
-# Crear directorios necesarios
+# Create required directories
 RUN mkdir -p /app/data /app/uploads/photos /app/logs
 
-# Establecer permisos
+# Set permissions
 RUN chmod -R 755 /app/uploads /app/data /app/logs
 
-# Exponer puerto
+# Expose port
 EXPOSE 5000
 
-# Variables de entorno por defecto
+# Default environment variables
 ENV FLASK_APP=run.py
 ENV FLASK_ENV=production
 ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
 
-# Asegurar permisos del script de inicialización (ya copiado con COPY backend/ .)
+# Ensure the init script is executable (already copied with COPY backend/ .)
 RUN chmod +x /app/init.sh
 
-# Comando de inicio
+# Startup command
 CMD ["/app/init.sh"]

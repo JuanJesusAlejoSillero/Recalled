@@ -4,10 +4,11 @@ from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app import db
-from app.models.user import User
 from app.middleware.auth import admin_required, get_current_user
 from app.middleware.validators import validate_json
+from app.models.user import User
 from app.schemas.user_schema import UserCreateSchema, UserUpdateSchema
+from app.utils.security import clear_auth_cookies, set_auth_cookies
 
 users_bp = Blueprint("users", __name__)
 
@@ -41,7 +42,10 @@ def get_user(user_id):
     if not current_user:
         return jsonify({"error": "Authentication required"}), 401
 
-    user = User.query.get_or_404(user_id, description="User not found")
+    if current_user.id != user_id and not current_user.is_admin:
+        return jsonify({"error": "Permission denied"}), 403
+
+    user = db.get_or_404(User, user_id, description="User not found")
 
     return jsonify(user.to_dict()), 200
 
@@ -76,7 +80,7 @@ def update_user(user_id, validated_data):
     if not current_user:
         return jsonify({"error": "Authentication required"}), 401
 
-    user = User.query.get_or_404(user_id, description="User not found")
+    user = db.get_or_404(User, user_id, description="User not found")
 
     # Only admin or the user themselves can update
     if current_user.id != user_id and not current_user.is_admin:
@@ -101,7 +105,14 @@ def update_user(user_id, validated_data):
 
     db.session.commit()
 
-    return jsonify(user.to_dict()), 200
+    response = jsonify(user.to_dict())
+
+    if current_user.id == user.id:
+        if "password" in validated_data:
+            return clear_auth_cookies(response)
+        return set_auth_cookies(response, user)
+
+    return response, 200
 
 
 @users_bp.route("/<int:user_id>", methods=["DELETE"])
@@ -112,7 +123,7 @@ def delete_user(user_id):
     if current_user and current_user.id == user_id:
         return jsonify({"error": "Cannot delete your own account"}), 400
 
-    user = User.query.get_or_404(user_id, description="User not found")
+    user = db.get_or_404(User, user_id, description="User not found")
 
     db.session.delete(user)
     db.session.commit()
