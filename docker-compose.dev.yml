@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
     volumes:
-      - redis-data-dev:/data
+      - ./redis-data-dev:/data
     expose:
       - "6379"
     networks:
@@ -22,18 +22,18 @@ services:
       - FLASK_ENV=production
       - "SECRET_KEY=${SECRET_KEY:?ERROR: SECRET_KEY is required. Generate one with: python -c import secrets; print(secrets.token_hex(32))}"
       - "JWT_SECRET_KEY=${JWT_SECRET_KEY:?ERROR: JWT_SECRET_KEY is required. Generate one with: python -c import secrets; print(secrets.token_hex(32))}"
-      - DATABASE_URL=sqlite:////app/data/reviews.db
-      - UPLOAD_FOLDER=/app/uploads
-      - MAX_CONTENT_LENGTH=5242880
-      - ALLOWED_EXTENSIONS=jpg,jpeg,png,webp
+      - "DATABASE_URL=${DATABASE_URL:-sqlite:////app/data/reviews.db}"
+      - "UPLOAD_FOLDER=${UPLOAD_FOLDER:-/app/uploads}"
+      - "MAX_CONTENT_LENGTH=${MAX_CONTENT_LENGTH:-52428800}"
+      - "ALLOWED_EXTENSIONS=${ALLOWED_EXTENSIONS:-jpg,jpeg,png,webp}"
       - "ADMIN_USERNAME=${ADMIN_USERNAME:-admin}"
       - "ADMIN_PASSWORD=${ADMIN_PASSWORD:?ERROR: ADMIN_PASSWORD is required. Set a strong password in .env}"
-      - "CORS_ORIGINS=${CORS_ORIGINS:-http://localhost}"
+      - "CORS_ORIGINS=${CORS_ORIGINS:-https://localhost}"
       - "AUTH_LOGIN_RATE_LIMIT=${AUTH_LOGIN_RATE_LIMIT:-5/minute}"
       - "AUTH_2FA_RATE_LIMIT=${AUTH_2FA_RATE_LIMIT:-10/minute}"
       - "AUTH_REFRESH_RATE_LIMIT=${AUTH_REFRESH_RATE_LIMIT:-30/minute}"
       - "RATELIMIT_STORAGE_URI=${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}"
-      - "JWT_COOKIE_SECURE=${JWT_COOKIE_SECURE:-false}"
+      - "JWT_COOKIE_SECURE=${JWT_COOKIE_SECURE:-true}"
       - "JWT_COOKIE_SAMESITE=${JWT_COOKIE_SAMESITE:-Lax}"
     volumes:
       - ./data-dev:/app/data
@@ -77,6 +77,3 @@ services:
 networks:
   recalled-network-dev:
     driver: bridge
-
-volumes:
-  redis-data-dev:

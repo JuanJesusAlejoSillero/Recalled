@@ -46,6 +46,8 @@ cp .env.example .env
 nano .env  # Fill in the required values
 ```
 
+The example configuration assumes the app is served behind HTTPS and that Redis is available for shared auth rate limits. If you plan to run plain HTTP locally, change `JWT_COOKIE_SECURE` manually before starting the stack and adjust `CORS_ORIGINS` if needed.
+
 The `.env` file requires at minimum:
 
 | Variable         | Description                                                                                 |
@@ -73,30 +75,37 @@ docker compose -f docker-compose.dev.yml up -d --build
 Open `http://localhost:8090` (or the port configured in `APP_PORT`) and log in with the admin credentials.
 
 > **Dev stack**: runs on port `8091` by default (`APP_DEV_PORT`). Both stacks can run simultaneously without conflict.
+> If you keep the default `JWT_COOKIE_SECURE=true`, serve the app through HTTPS. Plain HTTP setups must override that value manually in `.env`.
 
 ## Configuration
 
 All configuration is done through the `.env` file. See [.env.example](.env.example) for all available options:
 
-| Variable                  | Default             | Description                                          |
-|---------------------------|---------------------|------------------------------------------------------|
-| `APP_PORT`                | `8090`              | Port for the production stack (`docker-compose.yml`) |
-| `APP_DEV_PORT`            | `8091`              | Port for the dev stack (`docker-compose.dev.yml`)    |
-| `IMAGE_TAG`               | `latest`            | Docker image tag (e.g. `1.0.0`)                      |
-| `ADMIN_USERNAME`          | `admin`             | Admin username                                       |
-| `CORS_ORIGINS`            | `http://localhost`  | Allowed CORS origins (comma-separated)               |
-| `MAX_CONTENT_LENGTH`      | `52428800`          | Max upload size in bytes (50 MB)                     |
-| `ALLOWED_EXTENSIONS`      | `jpg,jpeg,png,webp` | Allowed file extensions for uploads                  |
-| `AUTH_LOGIN_RATE_LIMIT`   | `5/minute`          | Rate limit for login attempts                        |
-| `AUTH_2FA_RATE_LIMIT`     | `10/minute`         | Rate limit for TOTP verification attempts            |
-| `AUTH_REFRESH_RATE_LIMIT` | `30/minute`         | Rate limit for refresh token usage                   |
-| `RATELIMIT_STORAGE_URI`   | `memory://`         | Storage backend for rate limits                      |
-| `JWT_COOKIE_SECURE`       | `false`             | Send auth cookies only over HTTPS                    |
-| `JWT_COOKIE_SAMESITE`     | `Lax`               | SameSite policy for auth cookies                     |
-| `ENABLE_MAP`              | `false`             | Enable the world map page (Leaflet + OpenStreetMap)  |
+| Variable                  | Default                          | Possible values                                             | Description                                          |
+|---------------------------|----------------------------------|-------------------------------------------------------------|------------------------------------------------------|
+| `FLASK_ENV`               | `production`                     | `production`, `development`                                 | Flask runtime environment                            |
+| `SECRET_KEY`              |                                  | Any long random secret string                               | Flask secret key                                     |
+| `JWT_SECRET_KEY`          |                                  | Any long random secret string different from `SECRET_KEY`   | JWT signing secret                                   |
+| `ADMIN_USERNAME`          | `admin`                          | Any non-empty username                                      | Admin username                                       |
+| `ADMIN_PASSWORD`          |                                  | Any strong password string                                  | Password for the admin user                          |
+| `DATABASE_URL`            | `sqlite:////app/data/reviews.db` | Any valid SQLAlchemy connection string                      | Database connection                                  |
+| `UPLOAD_FOLDER`           | `/app/uploads`                   | Any writable absolute path inside the backend container     | Upload directory                                     |
+| `MAX_CONTENT_LENGTH`      | `52428800`                       | Any positive integer in bytes                               | Max upload size in bytes (50 MB by default)          |
+| `ALLOWED_EXTENSIONS`      | `jpg,jpeg,png,webp`              | Comma-separated file extensions                             | Allowed file extensions for uploads                  |
+| `CORS_ORIGINS`            | `https://localhost`              | Comma-separated origins, e.g. `https://reviews.example.com` | Allowed CORS origins                                 |
+| `AUTH_LOGIN_RATE_LIMIT`   | `5/minute`                       | Flask-Limiter strings, e.g. `5/minute`, `20/hour`           | Rate limit for login attempts                        |
+| `AUTH_2FA_RATE_LIMIT`     | `10/minute`                      | Flask-Limiter strings, e.g. `10/minute`, `30/hour`          | Rate limit for TOTP verification attempts            |
+| `AUTH_REFRESH_RATE_LIMIT` | `30/minute`                      | Flask-Limiter strings, e.g. `30/minute`, `120/hour`         | Rate limit for refresh token usage                   |
+| `RATELIMIT_STORAGE_URI`   | `redis://redis:6379/0`           | `redis://...`, `memory://`                                  | Storage backend for rate limits                      |
+| `JWT_COOKIE_SECURE`       | `true`                           | `true`, `false`                                             | Send auth cookies only over HTTPS                    |
+| `JWT_COOKIE_SAMESITE`     | `Lax`                            | `Lax`, `Strict`, `None`                                     | SameSite policy for auth cookies                     |
+| `APP_PORT`                | `8090`                           | Any free host port, e.g. `80`, `443`, `8090`                | Port for the production stack (`docker-compose.yml`) |
+| `APP_DEV_PORT`            | `8091`                           | Any free host port different from `APP_PORT`                | Port for the dev stack (`docker-compose.dev.yml`)    |
+| `IMAGE_TAG`               | `latest`                         | Docker image tag such as `latest`, `1.4.1`                  | Docker image tag for the production stack            |
+| `VITE_API_URL`            | `/api/v1`                        | Relative path or absolute URL                               | Frontend API base URL                                |
+| `ENABLE_MAP`              | `true`                           | `true`, `false`                                             | Enable the world map page (Leaflet + OpenStreetMap)  |
 
-For multi-worker deployments, point `RATELIMIT_STORAGE_URI` to Redis so auth rate limits are shared across workers.
-Set `JWT_COOKIE_SECURE=true` when the app is served over HTTPS.
+The example defaults assume HTTPS and Redis-backed rate limiting. If you run the app without HTTPS, set `JWT_COOKIE_SECURE=false` manually before starting the stack. If you do not run Redis, switch `RATELIMIT_STORAGE_URI` to `memory://` or point it to another Redis instance.
 
 ## Project Structure
 
@@ -212,7 +221,7 @@ To expose Recalled with a custom domain and HTTPS, place a reverse proxy in fron
 1. Set `CORS_ORIGINS` in `.env` to your domain: `https://reviews.yourdomain.com`
 2. Set `APP_PORT` to your preferred port (production) or `APP_DEV_PORT` (dev stack)
 3. Configure your reverse proxy to point to that port and handle SSL certificates
-4. Consider adding rate limiting to the login endpoint (`/api/v1/auth/login`)
+4. Keep `JWT_COOKIE_SECURE=true` and, if needed, point `RATELIMIT_STORAGE_URI` to your Redis instance
 
 ## API Endpoints
 
