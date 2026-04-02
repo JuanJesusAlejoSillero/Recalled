@@ -4,6 +4,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { useAuth } from '../../hooks/useAuth';
 import { usersAPI } from '../../services/api';
 import { useNavigationPrompt } from '../../hooks/useNavigationPrompt';
+import LocationPickerMap from '../common/LocationPickerMap';
 import { FiSearch } from 'react-icons/fi';
 
 const CATEGORY_KEYS = [
@@ -23,8 +24,8 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
       name: initialData?.name || '',
       address: initialData?.address || '',
       category: initialData?.category || '',
-      latitude: initialData?.latitude || '',
-      longitude: initialData?.longitude || '',
+      latitude: initialData?.latitude ?? '',
+      longitude: initialData?.longitude ?? '',
     },
   });
 
@@ -33,8 +34,8 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
     name: initialData?.name || '',
     address: initialData?.address || '',
     category: initialData?.category || '',
-    latitude: initialData?.latitude || '',
-    longitude: initialData?.longitude || '',
+    latitude: initialData?.latitude ?? '',
+    longitude: initialData?.longitude ?? '',
     isPrivate: initialData?.is_private || false,
     owner: initialData?.created_by || '',
   });
@@ -105,12 +106,21 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
     setGeocodeSearched(false);
   };
 
+  const parseCoordinateValue = (value) => {
+    if (value === '' || value === null || value === undefined) {
+      return null;
+    }
+
+    const parsed = typeof value === 'number' ? value : Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
   const onFormSubmit = (data) => {
     isSubmitting.current = true;
     const payload = {
       ...data,
-      latitude: data.latitude ? parseFloat(data.latitude) : null,
-      longitude: data.longitude ? parseFloat(data.longitude) : null,
+      latitude: parseCoordinateValue(data.latitude),
+      longitude: parseCoordinateValue(data.longitude),
       category: data.category || null,
       is_private: isPrivate,
     };
@@ -125,6 +135,19 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
     isSubmitting.current = true; // prevent nav guard firing during cancel
     onCancel();
   };
+
+  const handleLocationChange = ({ latitude, longitude }) => {
+    setValue('latitude', latitude, { shouldDirty: true, shouldTouch: true });
+    setValue('longitude', longitude, { shouldDirty: true, shouldTouch: true });
+  };
+
+  const clearLocation = () => {
+    setValue('latitude', '', { shouldDirty: true, shouldTouch: true });
+    setValue('longitude', '', { shouldDirty: true, shouldTouch: true });
+  };
+
+  const hasLocation = Number.isFinite(Number.parseFloat(watchedFields.latitude))
+    && Number.isFinite(Number.parseFloat(watchedFields.longitude));
 
   return (
     <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
@@ -219,6 +242,31 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
             placeholder={t('placeForm.longitudePlaceholder')}
           />
         </div>
+      </div>
+
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {t('placeForm.location')}
+          </label>
+          {hasLocation && (
+            <button
+              type="button"
+              onClick={clearLocation}
+              className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+            >
+              {t('placeForm.clearLocation')}
+            </button>
+          )}
+        </div>
+        <LocationPickerMap
+          latitude={watchedFields.latitude}
+          longitude={watchedFields.longitude}
+          onChange={handleLocationChange}
+          markerLabel={watchedFields.name || t('placeForm.name')}
+          hint={t('placeForm.locationHint')}
+          emptyMessage={t('placeForm.locationMissing')}
+        />
       </div>
 
       <div className="flex items-center space-x-3">

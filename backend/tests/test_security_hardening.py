@@ -58,6 +58,15 @@ def _get_review(app, review_id):
         return review.to_dict(include_photos=False) if review else None
 
 
+def _get_place(app, place_id):
+    from app import db
+    from app.models.place import Place
+
+    with app.app_context():
+        place = db.session.get(Place, place_id)
+        return place.to_dict() if place else None
+
+
 def _login(client, username, password="Password123!", remote_addr="127.0.0.1"):
     response = client.post(
         "/api/v1/auth/login",
@@ -230,6 +239,24 @@ def test_username_change_rotates_cookie_session(app, client):
     assert new_cookie.value != old_cookie.value
     assert me_response.status_code == 200
     assert me_response.get_json()["username"] == "alice_renamed"
+
+
+def test_place_owner_can_update_coordinates_without_full_payload(app, client):
+    alice_id = _create_user(app, "alice")
+    place_id = _create_place(app, "Coordinate Spot", created_by=alice_id)
+
+    _login_session(client, "alice")
+    response = client.put(
+        f"/api/v1/places/{place_id}",
+        json={"latitude": 40.4168, "longitude": -3.7038},
+        headers=_csrf_headers(client),
+    )
+
+    assert response.status_code == 200
+    place = _get_place(app, place_id)
+    assert place["name"] == "Coordinate Spot"
+    assert place["latitude"] == 40.4168
+    assert place["longitude"] == -3.7038
 
 
 def test_starting_2fa_setup_keeps_session_valid(app, client):

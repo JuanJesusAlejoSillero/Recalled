@@ -42,3 +42,23 @@ class PlaceCreateSchema(Schema):
         if "address" in data:
             data["address"] = sanitize_string(data.get("address"))
         return data
+
+
+class PlaceUpdateSchema(Schema):
+    """Schema for updating a place."""
+
+    name = fields.Str(validate=validate.Length(min=1, max=200))
+    address = fields.Str(allow_none=True, load_default=None)
+    latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
+    longitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180))
+    category = fields.Str(allow_none=True, load_default=None, validate=validate.OneOf(VALID_CATEGORIES))
+    is_private = fields.Bool()
+    created_by = fields.Int(allow_none=True, load_default=None)
+
+    @pre_load
+    def sanitize(self, data, **kwargs):
+        if "name" in data:
+            data["name"] = sanitize_string(data.get("name"))
+        if "address" in data:
+            data["address"] = sanitize_string(data.get("address"))
+        return data

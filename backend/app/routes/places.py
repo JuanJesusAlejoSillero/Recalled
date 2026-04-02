@@ -9,7 +9,7 @@ from app.models.place import Place
 from app.models.review import Review
 from app.middleware.auth import admin_required, get_current_user
 from app.middleware.validators import validate_json
-from app.schemas.place_schema import PlaceCreateSchema
+from app.schemas.place_schema import PlaceCreateSchema, PlaceUpdateSchema
 
 places_bp = Blueprint("places", __name__)
 
@@ -147,7 +147,7 @@ def create_place(validated_data):
 
 @places_bp.route("/<int:place_id>", methods=["PUT"])
 @jwt_required()
-@validate_json(PlaceCreateSchema)
+@validate_json(PlaceUpdateSchema)
 def update_place(place_id, validated_data):
     """Update a place (creator or admin)."""
     place = Place.query.get_or_404(place_id, description="Place not found")

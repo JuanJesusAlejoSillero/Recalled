@@ -4,6 +4,7 @@ import { FiX, FiSearch } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
 import ImageUploader from '../common/ImageUploader';
 import ConfirmDialog from '../common/ConfirmDialog';
+import LocationPickerMap from '../common/LocationPickerMap';
 import { placesAPI } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { getThumbnailUrl } from '../../utils/helpers';
@@ -65,6 +66,11 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         isPrivate: initialData?.is_private || false,
         isNewPlace: false,
         newPlaceName: '',
+        newPlaceAddress: '',
+        newPlaceCategory: '',
+        newPlaceLatitude: '',
+        newPlaceLongitude: '',
+        newPlaceIsPrivate: false,
         photosCount: 0,
         photosToDeleteCount: 0,
       };
@@ -84,10 +90,29 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
       isPrivate !== snap.isPrivate ||
       isNewPlace !== snap.isNewPlace ||
       newPlaceName !== snap.newPlaceName ||
+      newPlaceAddress !== snap.newPlaceAddress ||
+      newPlaceCategory !== snap.newPlaceCategory ||
+      String(newPlaceLatitude) !== String(snap.newPlaceLatitude) ||
+      String(newPlaceLongitude) !== String(snap.newPlaceLongitude) ||
+      newPlaceIsPrivate !== snap.newPlaceIsPrivate ||
       photos.length !== snap.photosCount ||
       photosToDelete.length !== snap.photosToDeleteCount;
     onDirtyChange(isDirty);
-  }, [watchedFields, rating, isPrivate, isNewPlace, newPlaceName, photos, photosToDelete, onDirtyChange]);
+  }, [
+    watchedFields,
+    rating,
+    isPrivate,
+    isNewPlace,
+    newPlaceName,
+    newPlaceAddress,
+    newPlaceCategory,
+    newPlaceLatitude,
+    newPlaceLongitude,
+    newPlaceIsPrivate,
+    photos,
+    photosToDelete,
+    onDirtyChange,
+  ]);
 
   useEffect(() => {
     placesAPI.list({ per_page: 100, sort: 'name' }).then(({ data }) => {
@@ -226,6 +251,19 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     setGeocodeSearched(false);
   };
 
+  const handleLocationChange = ({ latitude, longitude }) => {
+    setNewPlaceLatitude(String(latitude));
+    setNewPlaceLongitude(String(longitude));
+  };
+
+  const clearLocation = () => {
+    setNewPlaceLatitude('');
+    setNewPlaceLongitude('');
+  };
+
+  const hasInlineLocation = Number.isFinite(Number.parseFloat(newPlaceLatitude))
+    && Number.isFinite(Number.parseFloat(newPlaceLongitude));
+
   const inputClass = "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white";
 
   return (
@@ -361,6 +399,31 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
                   placeholder={t('placeForm.longitudePlaceholder')}
                 />
               </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  {t('placeForm.location')}
+                </label>
+                {hasInlineLocation && (
+                  <button
+                    type="button"
+                    onClick={clearLocation}
+                    className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                  >
+                    {t('placeForm.clearLocation')}
+                  </button>
+                )}
+              </div>
+              <LocationPickerMap
+                latitude={newPlaceLatitude}
+                longitude={newPlaceLongitude}
+                onChange={handleLocationChange}
+                markerLabel={newPlaceName || t('reviewForm.newPlace')}
+                hint={t('placeForm.locationHint')}
+                emptyMessage={t('placeForm.locationMissing')}
+                heightClassName="h-64"
+              />
             </div>
             <div className="flex items-center space-x-3">
               <input
