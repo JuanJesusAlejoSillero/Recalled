@@ -63,10 +63,25 @@ function getBoundsArray(map) {
 
 function FitBounds({ places, activePosition, activeZoom }) {
   const map = useMap();
+  const previousPlacesSignatureRef = useRef('');
+  const previousActivePositionRef = useRef(null);
 
   useEffect(() => {
+    const placesSignature = places
+      .map((place) => `${place.id}:${place.latitude}:${place.longitude}`)
+      .join('|');
+    const placesChanged = placesSignature !== previousPlacesSignatureRef.current;
+    const activePositionWasCleared = previousActivePositionRef.current && !activePosition;
+
+    previousPlacesSignatureRef.current = placesSignature;
+    previousActivePositionRef.current = activePosition;
+
     if (activePosition) {
       map.setView(activePosition, activeZoom ?? Math.max(map.getZoom(), EDIT_ZOOM), { animate: true });
+      return;
+    }
+
+    if (activePositionWasCleared && !placesChanged) {
       return;
     }
 
@@ -157,7 +172,7 @@ function PlaceMarker({
       zIndexOffset={isFocused ? 1000 : 0}
       eventHandlers={{
         click() {
-          onFocus(place, { openPopup: false, zoom: null });
+          onFocus(place, { openPopup: true, center: false, zoom: null });
         },
         ...(isEditing ? {
           dragend(event) {
@@ -170,7 +185,7 @@ function PlaceMarker({
         } : {}),
       }}
     >
-      <Popup>
+      <Popup autoPan={!shouldOpenPopup}>
         <div className="text-sm">
           <Link
             to={`/places/${place.id}`}
@@ -295,6 +310,7 @@ function MapPage() {
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [focusedPlaceId, setFocusedPlaceId] = useState(null);
+  const [shouldCenterFocusedPlace, setShouldCenterFocusedPlace] = useState(false);
   const [editingPlaceId, setEditingPlaceId] = useState(null);
   const [draftPosition, setDraftPosition] = useState(null);
   const [focusZoom, setFocusZoom] = useState(null);
@@ -381,21 +397,29 @@ function MapPage() {
     || (editingPlace && editingPlace.id === focusedPlaceId ? editingPlace : null)
     || null;
 
+  const isEditingFocusedPlace = Boolean(
+    draftPosition
+    && editingPlace
+    && focusedPlaceId === editingPlace.id
+  );
+
   const activePosition = useMemo(() => {
-    if (draftPosition) {
+    if (draftPosition && (isEditingFocusedPlace || !focusedPlace)) {
       return draftPosition;
     }
 
-    if (focusedPlace) {
+    if (focusedPlace && shouldCenterFocusedPlace) {
       return [focusedPlace.latitude, focusedPlace.longitude];
     }
 
     return null;
-  }, [draftPosition, focusedPlace]);
+  }, [draftPosition, focusedPlace, isEditingFocusedPlace, shouldCenterFocusedPlace]);
 
   const clusteredSourcePlaces = useMemo(() => (
-    filteredPlaces.filter((place) => place.id !== editingPlaceId)
-  ), [filteredPlaces, editingPlaceId]);
+    filteredPlaces.filter(
+      (place) => place.id !== editingPlaceId && place.id !== focusedPlaceId
+    )
+  ), [filteredPlaces, editingPlaceId, focusedPlaceId]);
 
   const placeById = useMemo(() => (
     new Map(filteredPlaces.map((place) => [place.id, place]))
@@ -439,6 +463,7 @@ function MapPage() {
   useEffect(() => {
     if (filteredPlaces.length === 0) {
       setFocusedPlaceId(null);
+      setShouldCenterFocusedPlace(false);
       setFocusZoom(null);
       setPendingPopupPlaceId(null);
       return;
@@ -449,6 +474,7 @@ function MapPage() {
     }
 
     setFocusedPlaceId(null);
+    setShouldCenterFocusedPlace(false);
     setFocusZoom(null);
   }, [filteredPlaces, focusedPlaceId]);
 
@@ -479,6 +505,7 @@ function MapPage() {
     }
 
     setFocusedPlaceId(place.id);
+    setShouldCenterFocusedPlace(true);
     setPendingPopupPlaceId(place.id);
     setFocusZoom(FOCUS_ZOOM);
     setEditingPlaceId(place.id);
@@ -489,6 +516,7 @@ function MapPage() {
   const cancelEditing = () => {
     setEditingPlaceId(null);
     setDraftPosition(null);
+    setShouldCenterFocusedPlace(false);
     setFocusZoom(null);
     setPendingPopupPlaceId(null);
     setFeedback({ error: '', success: '' });
@@ -512,6 +540,7 @@ function MapPage() {
         place.id === updatedPlace.id ? updatedPlace : place
       )));
       setFocusedPlaceId(updatedPlace.id);
+      setShouldCenterFocusedPlace(true);
       setPendingPopupPlaceId(updatedPlace.id);
       setFocusZoom(FOCUS_ZOOM);
       setEditingPlaceId(updatedPlace.id);
@@ -563,10 +592,12 @@ function MapPage() {
   const focusPlace = (place, options = {}) => {
     const {
       openPopup = true,
+      center = true,
       zoom = FOCUS_ZOOM,
     } = options;
 
     setFocusedPlaceId(place.id);
+    setShouldCenterFocusedPlace(center);
     setFocusZoom(zoom);
     setPendingPopupPlaceId(openPopup ? place.id : null);
   };
@@ -579,7 +610,7 @@ function MapPage() {
     );
   }
 
-  const activeZoom = focusZoom ?? (draftPosition ? Math.max(EDIT_ZOOM, DEFAULT_ZOOM) : null);
+  const activeZoom = focusZoom ?? (isEditingFocusedPlace ? Math.max(EDIT_ZOOM, DEFAULT_ZOOM) : null);
 
   return (
     <div className="space-y-6">
@@ -807,6 +838,21 @@ function MapPage() {
               onPopupOpened={handlePopupOpened}
               t={t}
             />
+            {focusedPlace && (!editingPlace || editingPlace.id !== focusedPlace.id) && (
+              <PlaceMarker
+                place={focusedPlace}
+                isFocused={true}
+                isEditing={false}
+                canEdit={canEditPlace(focusedPlace)}
+                onFocus={focusPlace}
+                onStartEditing={startEditing}
+                onCancelEditing={cancelEditing}
+                onDraftPositionChange={setDraftPosition}
+                shouldOpenPopup={pendingPopupPlaceId === focusedPlace.id}
+                onPopupOpened={handlePopupOpened}
+                t={t}
+              />
+            )}
             {editingPlace && (
               <PlaceMarker
                 place={editingPlace}
