@@ -1,3 +1,17 @@
+import io
+
+
+_PNG_1X1 = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x02\x00\x00\x00\x90wS\xde\x00\x00\x00\x0cIDATx\x9cc``\x00\x00\x00"
+    b"\x04\x00\x01\xf6\x178U\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+def _image_upload(filename="photo.png"):
+    return (io.BytesIO(_PNG_1X1), filename)
+
+
 def _create_photo(app, review_id, filename="testphoto.jpg"):
     from app import db
     from app.models.photo import ReviewPhoto
@@ -257,6 +271,26 @@ def test_place_owner_can_update_coordinates_without_full_payload(app, client):
     assert place["name"] == "Coordinate Spot"
     assert place["latitude"] == 40.4168
     assert place["longitude"] == -3.7038
+
+
+def test_review_photo_limit_is_enforced_in_backend(app, client):
+    alice_id = _create_user(app, "alice")
+    place_id = _create_place(app, "Photo Spot", created_by=alice_id)
+    review_id = _create_review(app, user_id=alice_id, place_id=place_id)
+
+    for index in range(5):
+        _create_photo(app, review_id, filename=f"existing-{index}.png")
+
+    _login_session(client, "alice")
+    response = client.post(
+        f"/api/v1/reviews/{review_id}/photos",
+        data={"photos": [_image_upload("extra.png")]},
+        headers=_csrf_headers(client),
+        content_type="multipart/form-data",
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Photo limit reached for this review"
 
 
 def test_starting_2fa_setup_keeps_session_valid(app, client):

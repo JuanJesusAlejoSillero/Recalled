@@ -41,6 +41,11 @@ class Config:
             f"{name} environment variable must be one of: Lax, Strict, None"
         )
 
+    @staticmethod
+    def _get_csv(name: str, default: str) -> list[str]:
+        value = os.environ.get(name, default)
+        return [item.strip() for item in value.split(",") if item.strip()]
+
     # Flask
     SECRET_KEY = os.environ.get("SECRET_KEY")
     if not SECRET_KEY:
@@ -88,11 +93,11 @@ class Config:
         os.environ.get("MAX_CONTENT_LENGTH", 52428800)
     )  # 50MB (multiple photo uploads)
     ALLOWED_EXTENSIONS = set(
-        os.environ.get("ALLOWED_EXTENSIONS", "jpg,jpeg,png,webp").split(",")
+        _get_csv.__func__("ALLOWED_EXTENSIONS", "jpg,jpeg,png,webp")
     )
 
     # CORS
-    CORS_ORIGINS = os.environ.get("CORS_ORIGINS", "http://localhost")
+    CORS_ORIGINS = _get_csv.__func__("CORS_ORIGINS", "http://localhost")
 
     # Admin
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")

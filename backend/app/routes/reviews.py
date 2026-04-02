@@ -13,6 +13,7 @@ from app.schemas.review_schema import ReviewCreateSchema, ReviewUpdateSchema
 from app.utils.file_handler import save_photo, delete_photo
 
 reviews_bp = Blueprint("reviews", __name__)
+MAX_REVIEW_PHOTOS = 5
 
 
 def _place_visible_to_user(place, current_user) -> bool:
@@ -278,6 +279,20 @@ def upload_photos(review_id):
     files = request.files.getlist("photos")
     if not files:
         return jsonify({"error": "No photos provided"}), 400
+
+    existing_photos = review.photos.count()
+    remaining_slots = MAX_REVIEW_PHOTOS - existing_photos
+
+    if remaining_slots <= 0:
+        return jsonify({"error": "Photo limit reached for this review"}), 400
+
+    if len(files) > remaining_slots:
+        return jsonify({
+            "error": (
+                f"You can upload up to {MAX_REVIEW_PHOTOS} photos per review. "
+                f"Remaining slots: {remaining_slots}"
+            )
+        }), 400
 
     uploaded = []
     errors = []

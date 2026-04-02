@@ -226,18 +226,35 @@ To expose Recalled with a custom domain and HTTPS, place a reverse proxy in fron
 3. Configure your reverse proxy to point to that port and handle SSL certificates
 4. Keep `JWT_COOKIE_SECURE=true`, point `RATELIMIT_STORAGE_URI` to your Redis instance if needed, and set `PROXY_FIX_X_FOR=2` if the request crosses your reverse proxy and Recalled's bundled frontend nginx
 
+## Testing
+
+Backend automated tests are available and can be run locally with:
+
+```bash
+cd backend
+pytest tests -q
+```
+
+For frontend changes, the project currently relies on manual verification. At minimum, validate the production bundle after UI changes with:
+
+```bash
+cd frontend
+npm run build
+```
+
+Map, geocoding, auth, and upload flows should still be smoke-tested in the dev stack because there is no automated frontend test suite yet.
+
 ## API Endpoints
 
-| Resource    | Endpoints                                                                                                                         |
-|-------------|-----------------------------------------------------------------------------------------------------------------------------------|
-| **Auth**    | `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout`                         |
-| **Users**   | `GET /api/v1/users`, `POST /api/v1/users`, `GET /api/v1/users/:id`, `PUT /api/v1/users/:id`, `DELETE /api/v1/users/:id`           |
-| **Places**  | `GET /api/v1/places`, `POST /api/v1/places`, `GET /api/v1/places/:id`, `PUT /api/v1/places/:id`, `DELETE /api/v1/places/:id`      |
-| **Reviews** | `GET /api/v1/reviews`, `POST /api/v1/reviews`, `GET /api/v1/reviews/:id`, `PUT /api/v1/reviews/:id`, `DELETE /api/v1/reviews/:id` |
-| **Photos**  | `POST /api/v1/reviews/:id/photos`, `DELETE /api/v1/reviews/:id/photos/:photoId`                                                   |
-| **Stats**   | `GET /api/v1/stats/user/:id`, `GET /api/v1/stats/places`                                                                          |
-| **Health**  | `GET /api/v1/health`                                                                                                              |
-| **Version** | `GET /api/v1/version`                                                                                                             |
+- **Auth**: `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout`
+- **Users**: `GET /api/v1/users` (admin only), `POST /api/v1/users` (admin only), `GET /api/v1/users/:id`, `PUT /api/v1/users/:id`, `DELETE /api/v1/users/:id` (admin only)
+- **Places**: `GET /api/v1/places`, `POST /api/v1/places`, `GET /api/v1/places/:id`, `PUT /api/v1/places/:id`, `DELETE /api/v1/places/:id`
+- **Reviews**: `GET /api/v1/reviews`, `POST /api/v1/reviews`, `GET /api/v1/reviews/:id`, `PUT /api/v1/reviews/:id`, `DELETE /api/v1/reviews/:id`
+- **Photos**: `POST /api/v1/reviews/:id/photos`, `DELETE /api/v1/reviews/:id/photos/:photoId`
+- **Media**: `GET /api/v1/media/photos/:filename`, `GET /api/v1/media/photos/thumbnails/:filename`
+- **Stats**: `GET /api/v1/stats/user/:id`, `GET /api/v1/stats/places`
+- **Health**: `GET /api/v1/health`
+- **Version**: `GET /api/v1/version`
 
 ## Contributing
 

@@ -37,8 +37,11 @@ def create_app():
     jwt.init_app(app)
     migrate.init_app(app, db)
     limiter.init_app(app)
-    CORS(app, origins=app.config.get("CORS_ORIGINS", "").split(","),
-         supports_credentials=True)
+    CORS(
+        app,
+        origins=app.config.get("CORS_ORIGINS", []),
+        supports_credentials=True,
+    )
 
     # Register blueprints
     from app.routes.auth import auth_bp
