@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
@@ -17,6 +17,7 @@ const DEFAULT_ZOOM = 2;
 const EDIT_ZOOM = 13;
 const CLUSTER_RADIUS = 60;
 const CLUSTER_MAX_ZOOM = 16;
+const FOCUS_ZOOM = CLUSTER_MAX_ZOOM + 1;
 const WORLD_BOUNDS = [-180, -85, 180, 85];
 const CATEGORY_KEYS = [
   'restaurant', 'hotel', 'museum', 'park', 'beach',
@@ -60,12 +61,12 @@ function getBoundsArray(map) {
   return [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
 }
 
-function FitBounds({ places, activePosition }) {
+function FitBounds({ places, activePosition, activeZoom }) {
   const map = useMap();
 
   useEffect(() => {
     if (activePosition) {
-      map.setView(activePosition, Math.max(map.getZoom(), EDIT_ZOOM), { animate: true });
+      map.setView(activePosition, activeZoom ?? Math.max(map.getZoom(), EDIT_ZOOM), { animate: true });
       return;
     }
 
@@ -81,7 +82,7 @@ function FitBounds({ places, activePosition }) {
 
     const bounds = L.latLngBounds(places.map((place) => [place.latitude, place.longitude]));
     map.fitBounds(bounds, { padding: [40, 40], maxZoom: EDIT_ZOOM });
-  }, [map, places, activePosition]);
+  }, [map, places, activePosition, activeZoom]);
 
   return null;
 }
@@ -129,16 +130,34 @@ function PlaceMarker({
   onStartEditing,
   onCancelEditing,
   onDraftPositionChange,
+  shouldOpenPopup,
+  onPopupOpened,
   t,
 }) {
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (!shouldOpenPopup || !markerRef.current) {
+      return undefined;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      markerRef.current?.openPopup();
+      onPopupOpened?.(place.id);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [shouldOpenPopup, onPopupOpened, place.id]);
+
   return (
     <Marker
+      ref={markerRef}
       position={[place.latitude, place.longitude]}
       draggable={isEditing}
       zIndexOffset={isFocused ? 1000 : 0}
       eventHandlers={{
         click() {
-          onFocus(place);
+          onFocus(place, { openPopup: false, zoom: null });
         },
         ...(isEditing ? {
           dragend(event) {
@@ -209,6 +228,8 @@ function ClusteredMarkerLayer({
   onStartEditing,
   onCancelEditing,
   onDraftPositionChange,
+  pendingPopupPlaceId,
+  onPopupOpened,
   t,
 }) {
   const map = useMap();
@@ -230,11 +251,11 @@ function ClusteredMarkerLayer({
               icon={buildClusterIcon(pointCount)}
               eventHandlers={{
                 click() {
-                  const nextZoom = Math.min(
-                    clusterIndex.getClusterExpansionZoom(clusterId),
-                    CLUSTER_MAX_ZOOM + 2,
+                  map.setView(
+                    [latitude, longitude],
+                    Math.min(clusterIndex.getClusterExpansionZoom(clusterId), FOCUS_ZOOM),
+                    { animate: true },
                   );
-                  map.setView([latitude, longitude], nextZoom, { animate: true });
                 },
               }}
             />
@@ -257,6 +278,8 @@ function ClusteredMarkerLayer({
             onStartEditing={onStartEditing}
             onCancelEditing={onCancelEditing}
             onDraftPositionChange={onDraftPositionChange}
+            shouldOpenPopup={pendingPopupPlaceId === place.id}
+            onPopupOpened={onPopupOpened}
             t={t}
           />
         );
@@ -274,6 +297,8 @@ function MapPage() {
   const [focusedPlaceId, setFocusedPlaceId] = useState(null);
   const [editingPlaceId, setEditingPlaceId] = useState(null);
   const [draftPosition, setDraftPosition] = useState(null);
+  const [focusZoom, setFocusZoom] = useState(null);
+  const [pendingPopupPlaceId, setPendingPopupPlaceId] = useState(null);
   const [saving, setSaving] = useState(false);
   const [mapViewport, setMapViewport] = useState(null);
   const [feedback, setFeedback] = useState({ error: '', success: '' });
@@ -394,7 +419,7 @@ function MapPage() {
           type: 'Point',
           coordinates: [place.longitude, place.latitude],
         },
-      })),
+      }))
     );
 
     return index;
@@ -407,13 +432,15 @@ function MapPage() {
 
     return clusterIndex.getClusters(
       mapViewport?.bounds || WORLD_BOUNDS,
-      Math.round(mapViewport?.zoom || DEFAULT_ZOOM),
+      Math.round(mapViewport?.zoom || DEFAULT_ZOOM)
     );
   }, [clusterIndex, mapViewport]);
 
   useEffect(() => {
     if (filteredPlaces.length === 0) {
       setFocusedPlaceId(null);
+      setFocusZoom(null);
+      setPendingPopupPlaceId(null);
       return;
     }
 
@@ -422,7 +449,29 @@ function MapPage() {
     }
 
     setFocusedPlaceId(null);
+    setFocusZoom(null);
   }, [filteredPlaces, focusedPlaceId]);
+
+  useEffect(() => {
+    if (!pendingPopupPlaceId) {
+      return;
+    }
+
+    if (filteredPlaces.some((place) => place.id === pendingPopupPlaceId)) {
+      return;
+    }
+
+    if (editingPlace && editingPlace.id === pendingPopupPlaceId) {
+      return;
+    }
+
+    setPendingPopupPlaceId(null);
+  }, [filteredPlaces, editingPlace, pendingPopupPlaceId]);
+
+  const handlePopupOpened = (placeId) => {
+    setPendingPopupPlaceId((currentPlaceId) => (currentPlaceId === placeId ? null : currentPlaceId));
+    setFocusZoom(null);
+  };
 
   const startEditing = (place) => {
     if (!canEditPlace(place)) {
@@ -430,6 +479,8 @@ function MapPage() {
     }
 
     setFocusedPlaceId(place.id);
+    setPendingPopupPlaceId(place.id);
+    setFocusZoom(FOCUS_ZOOM);
     setEditingPlaceId(place.id);
     setDraftPosition([place.latitude, place.longitude]);
     setFeedback({ error: '', success: '' });
@@ -438,6 +489,8 @@ function MapPage() {
   const cancelEditing = () => {
     setEditingPlaceId(null);
     setDraftPosition(null);
+    setFocusZoom(null);
+    setPendingPopupPlaceId(null);
     setFeedback({ error: '', success: '' });
   };
 
@@ -459,6 +512,8 @@ function MapPage() {
         place.id === updatedPlace.id ? updatedPlace : place
       )));
       setFocusedPlaceId(updatedPlace.id);
+      setPendingPopupPlaceId(updatedPlace.id);
+      setFocusZoom(FOCUS_ZOOM);
       setEditingPlaceId(updatedPlace.id);
       setDraftPosition([updatedPlace.latitude, updatedPlace.longitude]);
       setFeedback({ error: '', success: t('map.locationSaved') });
@@ -468,14 +523,6 @@ function MapPage() {
       setSaving(false);
     }
   };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
 
   const updateMapFilters = (updates) => {
     const nextParams = new URLSearchParams(searchParams);
@@ -513,9 +560,26 @@ function MapPage() {
     updateMapFilters({ q: '', category: '', editable: false });
   };
 
-  const focusPlace = (place) => {
+  const focusPlace = (place, options = {}) => {
+    const {
+      openPopup = true,
+      zoom = FOCUS_ZOOM,
+    } = options;
+
     setFocusedPlaceId(place.id);
+    setFocusZoom(zoom);
+    setPendingPopupPlaceId(openPopup ? place.id : null);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+      </div>
+    );
+  }
+
+  const activeZoom = focusZoom ?? (draftPosition ? Math.max(EDIT_ZOOM, DEFAULT_ZOOM) : null);
 
   return (
     <div className="space-y-6">
@@ -652,7 +716,7 @@ function MapPage() {
                       <div>
                         <button
                           type="button"
-                          onClick={() => focusPlace(place)}
+                          onClick={() => focusPlace(place, { openPopup: true, zoom: FOCUS_ZOOM })}
                           className="text-left text-sm font-semibold text-gray-900 hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
                         >
                           {place.name}
@@ -678,7 +742,7 @@ function MapPage() {
                     <div className="flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => focusPlace(place)}
+                        onClick={() => focusPlace(place, { openPopup: true, zoom: FOCUS_ZOOM })}
                         className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <FiCrosshair className="h-3.5 w-3.5" />
@@ -726,7 +790,7 @@ function MapPage() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <FitBounds places={filteredPlaces} activePosition={activePosition} />
+            <FitBounds places={filteredPlaces} activePosition={activePosition} activeZoom={activeZoom} />
             <MapViewportTracker onChange={setMapViewport} />
             <MapClickHandler enabled={Boolean(editingPlaceId)} onSelect={setDraftPosition} />
             <ClusteredMarkerLayer
@@ -739,6 +803,8 @@ function MapPage() {
               onStartEditing={startEditing}
               onCancelEditing={cancelEditing}
               onDraftPositionChange={setDraftPosition}
+              pendingPopupPlaceId={pendingPopupPlaceId}
+              onPopupOpened={handlePopupOpened}
               t={t}
             />
             {editingPlace && (
@@ -751,6 +817,8 @@ function MapPage() {
                 onStartEditing={startEditing}
                 onCancelEditing={cancelEditing}
                 onDraftPositionChange={setDraftPosition}
+                shouldOpenPopup={pendingPopupPlaceId === editingPlace.id}
+                onPopupOpened={handlePopupOpened}
                 t={t}
               />
             )}
