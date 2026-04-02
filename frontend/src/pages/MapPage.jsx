@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import Supercluster from 'supercluster';
 import { FiCheck, FiCrosshair, FiEdit2, FiExternalLink, FiMapPin, FiSearch, FiX } from 'react-icons/fi';
 import { placesAPI } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
@@ -14,6 +15,9 @@ ensureLeafletDefaultIcon();
 const DEFAULT_CENTER = [20, 0];
 const DEFAULT_ZOOM = 2;
 const EDIT_ZOOM = 13;
+const CLUSTER_RADIUS = 60;
+const CLUSTER_MAX_ZOOM = 16;
+const WORLD_BOUNDS = [-180, -85, 180, 85];
 const CATEGORY_KEYS = [
   'restaurant', 'hotel', 'museum', 'park', 'beach',
   'monument', 'shopping', 'nightlife', 'cafe', 'bar', 'other',
@@ -21,6 +25,39 @@ const CATEGORY_KEYS = [
 
 function roundCoordinate(value) {
   return Number.parseFloat(value.toFixed(6));
+}
+
+function buildClusterIcon(pointCount) {
+  const size = pointCount < 10 ? 36 : pointCount < 50 ? 44 : 52;
+  const fontSize = pointCount < 10 ? 13 : 14;
+  const background = pointCount < 10 ? '#2563eb' : pointCount < 50 ? '#1d4ed8' : '#1e3a8a';
+
+  return L.divIcon({
+    html: `
+      <div style="
+        width:${size}px;
+        height:${size}px;
+        border-radius:9999px;
+        background:${background};
+        color:white;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-weight:700;
+        font-size:${fontSize}px;
+        border:3px solid rgba(255,255,255,0.9);
+        box-shadow:0 10px 24px rgba(15,23,42,0.28);
+      ">${pointCount}</div>
+    `,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
+function getBoundsArray(map) {
+  const bounds = map.getBounds();
+  return [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()];
 }
 
 function FitBounds({ places, activePosition }) {
@@ -49,6 +86,23 @@ function FitBounds({ places, activePosition }) {
   return null;
 }
 
+function MapViewportTracker({ onChange }) {
+  const map = useMapEvents({
+    moveend() {
+      onChange({ bounds: getBoundsArray(map), zoom: map.getZoom() });
+    },
+    zoomend() {
+      onChange({ bounds: getBoundsArray(map), zoom: map.getZoom() });
+    },
+  });
+
+  useEffect(() => {
+    onChange({ bounds: getBoundsArray(map), zoom: map.getZoom() });
+  }, [map, onChange]);
+
+  return null;
+}
+
 function MapClickHandler({ enabled, onSelect }) {
   useMapEvents({
     click(event) {
@@ -66,19 +120,167 @@ function MapClickHandler({ enabled, onSelect }) {
   return null;
 }
 
+function PlaceMarker({
+  place,
+  isFocused,
+  isEditing,
+  canEdit,
+  onFocus,
+  onStartEditing,
+  onCancelEditing,
+  onDraftPositionChange,
+  t,
+}) {
+  return (
+    <Marker
+      position={[place.latitude, place.longitude]}
+      draggable={isEditing}
+      zIndexOffset={isFocused ? 1000 : 0}
+      eventHandlers={{
+        click() {
+          onFocus(place);
+        },
+        ...(isEditing ? {
+          dragend(event) {
+            const nextPosition = event.target.getLatLng();
+            onDraftPositionChange([
+              roundCoordinate(nextPosition.lat),
+              roundCoordinate(nextPosition.lng),
+            ]);
+          },
+        } : {}),
+      }}
+    >
+      <Popup>
+        <div className="text-sm">
+          <Link
+            to={`/places/${place.id}`}
+            className="font-semibold text-primary-600 hover:underline"
+          >
+            {place.name}
+          </Link>
+          {place.category && (
+            <p className="text-gray-500 text-xs mt-1">{t(`categories.${place.category}`)}</p>
+          )}
+          {place.address && (
+            <p className="text-gray-500 text-xs mt-1 max-w-56">{place.address}</p>
+          )}
+          <p className="text-gray-500 text-xs mt-1">
+            {place.latitude.toFixed(6)}, {place.longitude.toFixed(6)}
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              to={`/places/${place.id}`}
+              className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <FiExternalLink className="h-3.5 w-3.5" />
+              <span>{t('map.openDetail')}</span>
+            </Link>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (isEditing) {
+                    onCancelEditing();
+                  } else {
+                    onStartEditing(place);
+                  }
+                }}
+                className="inline-flex items-center gap-1 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
+              >
+                <FiEdit2 className="h-3.5 w-3.5" />
+                <span>{isEditing ? t('map.stopEditing') : t('map.editLocation')}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
+
+function ClusteredMarkerLayer({
+  clusters,
+  clusterIndex,
+  placeById,
+  focusedPlaceId,
+  canEditPlace,
+  onFocusPlace,
+  onStartEditing,
+  onCancelEditing,
+  onDraftPositionChange,
+  t,
+}) {
+  const map = useMap();
+
+  return (
+    <>
+      {clusters.map((feature) => {
+        const [longitude, latitude] = feature.geometry.coordinates;
+        const properties = feature.properties || {};
+
+        if (properties.cluster) {
+          const clusterId = properties.cluster_id;
+          const pointCount = properties.point_count || 0;
+
+          return (
+            <Marker
+              key={`cluster-${clusterId}`}
+              position={[latitude, longitude]}
+              icon={buildClusterIcon(pointCount)}
+              eventHandlers={{
+                click() {
+                  const nextZoom = Math.min(
+                    clusterIndex.getClusterExpansionZoom(clusterId),
+                    CLUSTER_MAX_ZOOM + 2,
+                  );
+                  map.setView([latitude, longitude], nextZoom, { animate: true });
+                },
+              }}
+            />
+          );
+        }
+
+        const place = placeById.get(properties.placeId);
+        if (!place) {
+          return null;
+        }
+
+        return (
+          <PlaceMarker
+            key={place.id}
+            place={place}
+            isFocused={place.id === focusedPlaceId}
+            isEditing={false}
+            canEdit={canEditPlace(place)}
+            onFocus={onFocusPlace}
+            onStartEditing={onStartEditing}
+            onCancelEditing={onCancelEditing}
+            onDraftPositionChange={onDraftPositionChange}
+            t={t}
+          />
+        );
+      })}
+    </>
+  );
+}
+
 function MapPage() {
   const { t } = useLanguage();
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
-  const [editableOnly, setEditableOnly] = useState(false);
   const [focusedPlaceId, setFocusedPlaceId] = useState(null);
   const [editingPlaceId, setEditingPlaceId] = useState(null);
   const [draftPosition, setDraftPosition] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [mapViewport, setMapViewport] = useState(null);
   const [feedback, setFeedback] = useState({ error: '', success: '' });
+
+  const search = searchParams.get('q') || '';
+  const category = searchParams.get('category') || '';
+  const editableOnly = searchParams.get('editable') === '1';
 
   useEffect(() => {
     const loadPlaces = async () => {
@@ -148,13 +350,66 @@ function MapPage() {
     });
   }, [displayedPlaces, search, category, editableOnly, editingPlaceId]);
 
-  const focusedPlace = filteredPlaces.find((place) => place.id === focusedPlaceId) || null;
-
-  const activePosition = draftPosition || (focusedPlace
-    ? [focusedPlace.latitude, focusedPlace.longitude]
-    : null);
-
   const editingPlace = displayedPlaces.find((place) => place.id === editingPlaceId) || null;
+
+  const focusedPlace = filteredPlaces.find((place) => place.id === focusedPlaceId)
+    || (editingPlace && editingPlace.id === focusedPlaceId ? editingPlace : null)
+    || null;
+
+  const activePosition = useMemo(() => {
+    if (draftPosition) {
+      return draftPosition;
+    }
+
+    if (focusedPlace) {
+      return [focusedPlace.latitude, focusedPlace.longitude];
+    }
+
+    return null;
+  }, [draftPosition, focusedPlace]);
+
+  const clusteredSourcePlaces = useMemo(() => (
+    filteredPlaces.filter((place) => place.id !== editingPlaceId)
+  ), [filteredPlaces, editingPlaceId]);
+
+  const placeById = useMemo(() => (
+    new Map(filteredPlaces.map((place) => [place.id, place]))
+  ), [filteredPlaces]);
+
+  const clusterIndex = useMemo(() => {
+    if (clusteredSourcePlaces.length === 0) {
+      return null;
+    }
+
+    const index = new Supercluster({
+      radius: CLUSTER_RADIUS,
+      maxZoom: CLUSTER_MAX_ZOOM,
+    });
+
+    index.load(
+      clusteredSourcePlaces.map((place) => ({
+        type: 'Feature',
+        properties: { placeId: place.id },
+        geometry: {
+          type: 'Point',
+          coordinates: [place.longitude, place.latitude],
+        },
+      })),
+    );
+
+    return index;
+  }, [clusteredSourcePlaces]);
+
+  const clusters = useMemo(() => {
+    if (!clusterIndex) {
+      return [];
+    }
+
+    return clusterIndex.getClusters(
+      mapViewport?.bounds || WORLD_BOUNDS,
+      Math.round(mapViewport?.zoom || DEFAULT_ZOOM),
+    );
+  }, [clusterIndex, mapViewport]);
 
   useEffect(() => {
     if (filteredPlaces.length === 0) {
@@ -222,10 +477,40 @@ function MapPage() {
     );
   }
 
+  const updateMapFilters = (updates) => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'q')) {
+      const nextValue = updates.q ?? '';
+      if (nextValue) {
+        nextParams.set('q', nextValue);
+      } else {
+        nextParams.delete('q');
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'category')) {
+      const nextValue = updates.category ?? '';
+      if (nextValue) {
+        nextParams.set('category', nextValue);
+      } else {
+        nextParams.delete('category');
+      }
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'editable')) {
+      if (updates.editable) {
+        nextParams.set('editable', '1');
+      } else {
+        nextParams.delete('editable');
+      }
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  };
+
   const resetFilters = () => {
-    setSearch('');
-    setCategory('');
-    setEditableOnly(false);
+    updateMapFilters({ q: '', category: '', editable: false });
   };
 
   const focusPlace = (place) => {
@@ -253,14 +538,14 @@ function MapPage() {
             <input
               type="text"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => updateMapFilters({ q: event.target.value })}
               placeholder={t('map.searchPlaceholder')}
               className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
             />
           </div>
           <select
             value={category}
-            onChange={(event) => setCategory(event.target.value)}
+            onChange={(event) => updateMapFilters({ category: event.target.value })}
             className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           >
             <option value="">{t('map.allCategories')}</option>
@@ -282,7 +567,7 @@ function MapPage() {
             <input
               type="checkbox"
               checked={editableOnly}
-              onChange={(event) => setEditableOnly(event.target.checked)}
+              onChange={(event) => updateMapFilters({ editable: event.target.checked })}
               className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500 dark:border-gray-600"
             />
             <span>{t('map.onlyEditable')}</span>
@@ -442,79 +727,33 @@ function MapPage() {
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <FitBounds places={filteredPlaces} activePosition={activePosition} />
+            <MapViewportTracker onChange={setMapViewport} />
             <MapClickHandler enabled={Boolean(editingPlaceId)} onSelect={setDraftPosition} />
-            {filteredPlaces.map((place) => {
-              const isEditing = place.id === editingPlaceId;
-              const isFocused = place.id === focusedPlaceId;
-
-              return (
-                <Marker
-                  key={place.id}
-                  position={[place.latitude, place.longitude]}
-                  draggable={isEditing}
-                  zIndexOffset={isFocused ? 1000 : 0}
-                  eventHandlers={{
-                    click() {
-                      setFocusedPlaceId(place.id);
-                    },
-                    ...(isEditing ? {
-                      dragend(event) {
-                        const nextPosition = event.target.getLatLng();
-                        setDraftPosition([
-                          roundCoordinate(nextPosition.lat),
-                          roundCoordinate(nextPosition.lng),
-                        ]);
-                      },
-                    } : {}),
-                  }}
-                >
-                  <Popup>
-                    <div className="text-sm">
-                      <Link
-                        to={`/places/${place.id}`}
-                        className="font-semibold text-primary-600 hover:underline"
-                      >
-                        {place.name}
-                      </Link>
-                      {place.category && (
-                        <p className="text-gray-500 text-xs mt-1">{t(`categories.${place.category}`)}</p>
-                      )}
-                      {place.address && (
-                        <p className="text-gray-500 text-xs mt-1 max-w-56">{place.address}</p>
-                      )}
-                      <p className="text-gray-500 text-xs mt-1">
-                        {place.latitude.toFixed(6)}, {place.longitude.toFixed(6)}
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Link
-                          to={`/places/${place.id}`}
-                          className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                        >
-                          <FiExternalLink className="h-3.5 w-3.5" />
-                          <span>{t('map.openDetail')}</span>
-                        </Link>
-                        {canEditPlace(place) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (isEditing) {
-                                cancelEditing();
-                              } else {
-                                startEditing(place);
-                              }
-                            }}
-                            className="inline-flex items-center gap-1 rounded-md bg-primary-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-primary-700"
-                          >
-                            <FiEdit2 className="h-3.5 w-3.5" />
-                            <span>{isEditing ? t('map.stopEditing') : t('map.editLocation')}</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </Popup>
-                </Marker>
-              );
-            })}
+            <ClusteredMarkerLayer
+              clusters={clusters}
+              clusterIndex={clusterIndex}
+              placeById={placeById}
+              focusedPlaceId={focusedPlaceId}
+              canEditPlace={canEditPlace}
+              onFocusPlace={focusPlace}
+              onStartEditing={startEditing}
+              onCancelEditing={cancelEditing}
+              onDraftPositionChange={setDraftPosition}
+              t={t}
+            />
+            {editingPlace && (
+              <PlaceMarker
+                place={editingPlace}
+                isFocused={editingPlace.id === focusedPlaceId}
+                isEditing={true}
+                canEdit={canEditPlace(editingPlace)}
+                onFocus={focusPlace}
+                onStartEditing={startEditing}
+                onCancelEditing={cancelEditing}
+                onDraftPositionChange={setDraftPosition}
+                t={t}
+              />
+            )}
           </MapContainer>
         </div>
       </div>
