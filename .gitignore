@@ -16,6 +16,8 @@ uploads/
 uploads-dev/
 logs/
 logs-dev/
+redis-data/
+redis-data-dev/
 
 # Build output
 frontend/dist/
