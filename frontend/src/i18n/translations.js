@@ -11,6 +11,7 @@ const translations = {
       openMenu: 'Abrir menú',
       settings: 'Ajustes',
       map: 'Mapa',
+      versionRelease: 'Ver release de GitHub para {version}',
     },
 
     // Login
@@ -237,7 +238,8 @@ const translations = {
 
     // Footer
     footer: {
-      rights: '© {year} Recalled. Todos los derechos reservados.',
+      rights: '© {year} Recalled. Licenciado bajo AGPL-3.0.',
+      githubRepo: 'Repositorio en GitHub',
     },
 
     // Common
@@ -345,6 +347,7 @@ const translations = {
       openMenu: 'Open menu',
       settings: 'Settings',
       map: 'Map',
+      versionRelease: 'View GitHub release for {version}',
     },
 
     login: {
@@ -558,7 +561,8 @@ const translations = {
     },
 
     footer: {
-      rights: '© {year} Recalled. All rights reserved.',
+      rights: '© {year} Recalled. Licensed under AGPL-3.0.',
+      githubRepo: 'GitHub repository',
     },
 
     common: {

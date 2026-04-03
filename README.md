@@ -71,6 +71,8 @@ docker compose up -d
 docker compose -f docker-compose.dev.yml up -d --build
 ```
 
+If you want to test the version badge and its GitHub release link from a local/develop build, set `APP_VERSION` in `.env` before rebuilding. For example: `APP_VERSION=v1.6.0-rc1`.
+
 ### 3. Access
 
 Open `http://localhost:8090` (or the port configured in `APP_PORT`) and log in with the admin credentials.
@@ -104,6 +106,7 @@ All configuration is done through the `.env` file. See [.env.example](.env.examp
 | `APP_PORT`                | `8090`                           | Any free host port, e.g. `80`, `443`, `8090`                | Port for the production stack (`docker-compose.yml`)                            |
 | `APP_DEV_PORT`            | `8091`                           | Any free host port different from `APP_PORT`                | Port for the dev stack (`docker-compose.dev.yml`)                               |
 | `IMAGE_TAG`               | `latest`                         | Docker image tag such as `latest`, `1.4.1`                  | Docker image tag for the production stack                                       |
+| `APP_VERSION`             | `dev`                            | Tag-like string such as `v1.6.0-rc1`                        | Local backend build version for the navbar badge                                |
 | `VITE_API_URL`            | `/api/v1`                        | Relative path or absolute URL                               | Frontend API base URL                                                           |
 | `ENABLE_MAP`              | `true`                           | `true`, `false`                                             | Enable the world map page (Leaflet + OpenStreetMap)                             |
 

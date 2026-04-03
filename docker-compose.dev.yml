@@ -16,6 +16,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+      args:
+        APP_VERSION: ${APP_VERSION:-dev}
     container_name: recalled-backend-dev
     restart: unless-stopped
     environment:

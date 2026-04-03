@@ -28,7 +28,8 @@ COPY --from=builder /wheels /wheels
 RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
     && rm -rf /wheels
 
-# App version (injected at build time by CI/CD, not overridable at runtime)
+# App version (injected at build time; CI/CD sets it for tagged releases,
+# and local builds may override it with APP_VERSION)
 ARG APP_VERSION=dev
 
 # Copy application code
