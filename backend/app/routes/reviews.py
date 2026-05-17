@@ -13,6 +13,7 @@ from app.schemas.review_schema import ReviewCreateSchema, ReviewUpdateSchema
 from app.utils.file_handler import save_photo, delete_photo
 from app.utils.visibility import (
     can_view_place,
+    normalize_visibility_user_ids,
     can_view_review,
     review_visibility_filter,
     sync_visibility_users,
@@ -33,6 +34,134 @@ def _get_accessible_place(place_id, current_user):
     if not place or not can_view_place(place, current_user):
         return None
     return place
+
+
+def _place_visibility_user_ids(place):
+    """Return the place allowlist as a list of user ids."""
+    if not place:
+        return []
+    return [user.id for user in place.visible_users]
+
+
+def _place_visibility_users(place):
+    """Return serialized place allowlist users."""
+    if not place:
+        return []
+    return [{"id": user.id, "username": user.username} for user in place.visible_users]
+
+
+def _review_visibility_user_ids(review):
+    """Return the review allowlist as a list of user ids."""
+    if not review:
+        return []
+    return [user.id for user in review.visible_users]
+
+
+def _normalize_review_visibility_user_ids(user_ids, owner_id):
+    """Normalize review allowlist ids while ignoring the review owner."""
+    return [
+        user_id
+        for user_id in normalize_visibility_user_ids(user_ids)
+        if user_id != owner_id
+    ]
+
+
+def _prune_review_visibility_user_ids_to_place(target_place, user_ids, owner_id):
+    """Keep only users that can also access the private place."""
+    normalized_ids = _normalize_review_visibility_user_ids(user_ids, owner_id)
+    if not target_place or not target_place.is_private:
+        return normalized_ids
+
+    allowed_user_ids = set(_place_visibility_user_ids(target_place))
+    return [user_id for user_id in normalized_ids if user_id in allowed_user_ids]
+
+
+def _validate_review_visibility_user_ids_for_place(target_place, user_ids, owner_id):
+    """Reject review allowlists that are broader than the private place allowlist."""
+    normalized_ids = _normalize_review_visibility_user_ids(user_ids, owner_id)
+    if not target_place or not target_place.is_private:
+        return normalized_ids
+
+    allowed_user_ids = set(_place_visibility_user_ids(target_place))
+    if any(user_id not in allowed_user_ids for user_id in normalized_ids):
+        raise ValueError("Review visibility users must already be allowed on the private place")
+
+    return normalized_ids
+
+
+def _resolve_review_visibility_defaults(
+    raw_payload,
+    target_place,
+    owner_id,
+    final_is_private,
+    review=None,
+    place_changed=False,
+):
+    """Resolve review allowlist ids and whether they inherit place defaults."""
+    if "visibility_user_ids" in raw_payload:
+        explicit_user_ids = _validate_review_visibility_user_ids_for_place(
+            target_place,
+            raw_payload.get("visibility_user_ids") or [],
+            owner_id,
+        )
+        return explicit_user_ids, False
+
+    if not final_is_private:
+        return [], False
+
+    if review is None:
+        if target_place and target_place.is_private:
+            return _place_visibility_user_ids(target_place), True
+        return [], False
+
+    current_review_user_ids = _review_visibility_user_ids(review)
+
+    if target_place and target_place.is_private:
+        if not review.is_private:
+            return _place_visibility_user_ids(target_place), True
+
+        if place_changed and review.inherits_place_visibility:
+            return _place_visibility_user_ids(target_place), True
+
+    if review.inherits_place_visibility:
+        if target_place and target_place.is_private:
+            return _prune_review_visibility_user_ids_to_place(
+                target_place,
+                current_review_user_ids,
+                owner_id,
+            ), True
+        return current_review_user_ids, False
+
+    return _prune_review_visibility_user_ids_to_place(
+        target_place,
+        current_review_user_ids,
+        owner_id,
+    ), False
+
+
+def _serialize_review(review, current_user):
+    """Serialize a review with edit-oriented place visibility metadata when allowed."""
+    current_user_id = current_user.id if current_user else None
+    is_admin = current_user.is_admin if current_user else False
+    data = review.to_dict(current_user_id=current_user_id, is_admin=is_admin)
+    place = review.place
+    data["place_is_private"] = bool(place.is_private) if place else False
+
+    can_edit_review = bool(current_user and (current_user.is_admin or review.user_id == current_user.id))
+    if can_edit_review and place:
+        data["inherits_place_visibility"] = bool(review.inherits_place_visibility)
+
+    if can_edit_review and place and place.is_private:
+        data["place_visibility_user_ids"] = _place_visibility_user_ids(place)
+        data["place_visibility_users"] = _place_visibility_users(place)
+        data["place_visibility_mismatch"] = (
+            review.is_private
+            and not review.inherits_place_visibility
+            and len(review.visible_users) == 0
+            and len(place.visible_users) > 0
+        )
+
+    return data
 
 
 @reviews_bp.route("", methods=["GET"])
@@ -77,10 +206,7 @@ def get_review(review_id):
     if not can_view_review(review, current_user):
         return jsonify({"error": "Review not found"}), 404
 
-    return jsonify(review.to_dict(
-        current_user_id=current_user.id if current_user else None,
-        is_admin=current_user.is_admin if current_user else False,
-    )), 200
+    return jsonify(_serialize_review(review, current_user)), 200
 
 
 def _extract_place_fields(validated_data):
@@ -133,9 +259,10 @@ def create_review(validated_data):
         return jsonify({"error": "Authentication required"}), 401
 
     user_id = current_user.id
+    raw_payload = request.get_json(silent=True) or {}
 
     place_id = validated_data.pop("place_id", None)
-    visibility_user_ids = validated_data.pop("visibility_user_ids", [])
+    validated_data.pop("visibility_user_ids", None)
     place_fields = _extract_place_fields(validated_data)
     target_place = None
 
@@ -158,6 +285,16 @@ def create_review(validated_data):
     if target_place and target_place.is_private:
         review_is_private = True
 
+    try:
+        visibility_user_ids, inherits_place_visibility = _resolve_review_visibility_defaults(
+            raw_payload,
+            target_place,
+            owner_id=user_id,
+            final_is_private=review_is_private,
+        )
+    except ValueError as err:
+        return jsonify({"error": str(err)}), 400
+
     review = Review(
         user_id=user_id,
         place_id=place_id,
@@ -166,6 +303,7 @@ def create_review(validated_data):
         comment=validated_data.get("comment"),
         visit_date=validated_data.get("visit_date"),
         is_private=review_is_private,
+        inherits_place_visibility=inherits_place_visibility,
     )
 
     db.session.add(review)
@@ -183,7 +321,7 @@ def create_review(validated_data):
 
     db.session.commit()
 
-    return jsonify(review.to_dict(current_user_id=current_user.id, is_admin=current_user.is_admin)), 201
+    return jsonify(_serialize_review(review, current_user)), 201
 
 
 @reviews_bp.route("/<int:review_id>", methods=["PUT"])
@@ -196,17 +334,15 @@ def update_review(review_id, validated_data):
         return jsonify({"error": "Authentication required"}), 401
 
     review = db.get_or_404(Review, review_id, description="Review not found")
+    raw_payload = request.get_json(silent=True) or {}
 
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403
-
-    visibility_user_ids = validated_data.pop(
-        "visibility_user_ids",
-        [user.id for user in review.visible_users],
-    )
+    validated_data.pop("visibility_user_ids", None)
 
     # Handle new place creation inline
     target_place = review.place
+    place_changed = False
     place_fields = _extract_place_fields(validated_data)
     if place_fields.get("name"):
         try:
@@ -215,18 +351,33 @@ def update_review(review_id, validated_data):
             db.session.rollback()
             return jsonify({"error": str(err)}), 400
         target_place = db.session.get(Place, validated_data["place_id"])
+        place_changed = True
     elif "place_id" in validated_data:
         target_place = _get_accessible_place(validated_data["place_id"], current_user)
         if not target_place:
             return jsonify({"error": "Place not found"}), 404
+        place_changed = validated_data["place_id"] != review.place_id
 
     final_is_private = validated_data.get("is_private", review.is_private)
     if target_place and target_place.is_private:
         validated_data["is_private"] = True
         final_is_private = True
 
+    try:
+        visibility_user_ids, inherits_place_visibility = _resolve_review_visibility_defaults(
+            raw_payload,
+            target_place,
+            owner_id=review.user_id,
+            final_is_private=final_is_private,
+            review=review,
+            place_changed=place_changed,
+        )
+    except ValueError as err:
+        return jsonify({"error": str(err)}), 400
+
     for key, value in validated_data.items():
         setattr(review, key, value)
+    review.inherits_place_visibility = inherits_place_visibility
 
     try:
         sync_visibility_users(
@@ -241,7 +392,7 @@ def update_review(review_id, validated_data):
 
     db.session.commit()
 
-    return jsonify(review.to_dict(current_user_id=current_user.id, is_admin=current_user.is_admin)), 200
+    return jsonify(_serialize_review(review, current_user)), 200
 
 
 @reviews_bp.route("/<int:review_id>", methods=["DELETE"])

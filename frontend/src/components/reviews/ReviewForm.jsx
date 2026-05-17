@@ -21,8 +21,24 @@ function selectedIdsSignature(userIds) {
     .join(',');
 }
 
+function mergeVisibilityUsers(...groups) {
+  const seen = new Set();
+
+  return groups.flat().filter((user) => {
+    const normalizedId = Number(user?.id);
+    const normalizedUsername = String(user?.username || '').trim();
+    if (!Number.isFinite(normalizedId) || !normalizedUsername || seen.has(normalizedId)) {
+      return false;
+    }
+
+    seen.add(normalizedId);
+    return true;
+  }).map((user) => ({ id: Number(user.id), username: String(user.username).trim() }));
+}
+
 function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChange }) {
   const { t } = useLanguage();
+  const isEditMode = Boolean(initialData?.id);
   const [rating, setRating] = useState(initialData?.rating || 0);
   const [photos, setPhotos] = useState([]);
   const [existingPhotos, setExistingPhotos] = useState(initialData?.photos || []);
@@ -37,9 +53,11 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
   const [newPlaceLongitude, setNewPlaceLongitude] = useState('');
   const [newPlaceIsPrivate, setNewPlaceIsPrivate] = useState(false);
   const [newPlaceVisibilityUserIds, setNewPlaceVisibilityUserIds] = useState([]);
+  const [newPlaceVisibilityUsers, setNewPlaceVisibilityUsers] = useState([]);
   const [placeError, setPlaceError] = useState('');
   const [isPrivate, setIsPrivate] = useState(initialData?.is_private || false);
   const [visibleUserIds, setVisibleUserIds] = useState(initialData?.visibility_user_ids || []);
+  const [reviewVisibilityTouched, setReviewVisibilityTouched] = useState(false);
   const [privacyConfirm, setPrivacyConfirm] = useState(null);
   const [geocodeResults, setGeocodeResults] = useState([]);
   const [geocoding, setGeocoding] = useState(false);
@@ -61,6 +79,51 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
   });
 
   const watchedFields = watch();
+  const selectedExistingPlace = !isNewPlace && watchedFields.place_id && places.length > 0
+    ? places.find((place) => String(place.id) === String(watchedFields.place_id))
+    : null;
+  const editingCurrentPlace = Boolean(initialData?.place_id)
+    && String(initialData.place_id) === String(selectedExistingPlace?.id);
+  const currentPlaceIsPrivate = isNewPlace
+    ? newPlaceIsPrivate
+    : Boolean(selectedExistingPlace?.is_private ?? (editingCurrentPlace ? initialData?.place_is_private : false));
+  const currentPlaceVisibilityUserIds = currentPlaceIsPrivate
+    ? (isNewPlace
+      ? newPlaceVisibilityUserIds
+      : (selectedExistingPlace?.visibility_user_ids
+        || (editingCurrentPlace ? initialData?.place_visibility_user_ids : [])
+        || []))
+    : [];
+  const currentPlaceVisibilityUsers = currentPlaceIsPrivate
+    ? (isNewPlace
+      ? newPlaceVisibilityUsers
+      : (selectedExistingPlace?.visibility_users
+        || (editingCurrentPlace ? initialData?.place_visibility_users : [])
+        || []))
+    : [];
+  const currentPlaceVisibilitySignature = selectedIdsSignature(currentPlaceVisibilityUserIds);
+  const visibleUserIdsSignature = selectedIdsSignature(visibleUserIds);
+  const reviewVisibilityOutsidePlaceIds = currentPlaceIsPrivate
+    ? visibleUserIds.filter((userId) => !currentPlaceVisibilityUserIds.includes(userId))
+    : [];
+  const canUseInheritedReviewVisibilityDefaults = Boolean(
+    currentPlaceIsPrivate
+    && (
+      !isEditMode
+      || initialData?.inherits_place_visibility
+      || !initialData?.is_private
+    )
+  );
+  const shouldUseInheritedReviewVisibility = Boolean(
+    isPrivate
+    && currentPlaceIsPrivate
+    && !reviewVisibilityTouched
+    && canUseInheritedReviewVisibilityDefaults
+  );
+  const reviewVisibilityKnownUsers = mergeVisibilityUsers(
+    initialData?.visibility_users || [],
+    currentPlaceVisibilityUsers,
+  );
 
   // Capture initial snapshot after mount
   useEffect(() => {
@@ -141,6 +204,21 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     }
   }, [places, preselectedPlaceId, setValue]);
 
+  useEffect(() => {
+    if (!shouldUseInheritedReviewVisibility) {
+      return;
+    }
+
+    if (visibleUserIdsSignature !== currentPlaceVisibilitySignature) {
+      setVisibleUserIds(currentPlaceVisibilityUserIds);
+    }
+  }, [
+    currentPlaceVisibilitySignature,
+    currentPlaceVisibilityUserIds,
+    shouldUseInheritedReviewVisibility,
+    visibleUserIdsSignature,
+  ]);
+
   // Auto-mark review as private when a private place is selected
   useEffect(() => {
     if (!isNewPlace && watchedFields.place_id && places.length > 0) {
@@ -178,7 +256,24 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     return false;
   };
 
+  const handleReviewVisibilityChange = (userIds) => {
+    setReviewVisibilityTouched(true);
+    setVisibleUserIds(userIds);
+  };
+
+  const handleApplyPlaceVisibilityDefaults = () => {
+    setReviewVisibilityTouched(true);
+    setVisibleUserIds(currentPlaceVisibilityUserIds);
+  };
+
+  const handleKeepOnlyPlaceAllowedUsers = () => {
+    setReviewVisibilityTouched(true);
+    setVisibleUserIds(visibleUserIds.filter((userId) => currentPlaceVisibilityUserIds.includes(userId)));
+  };
+
   const buildSubmitPayload = (data) => {
+    const includeReviewVisibilityUserIds = isPrivate && !shouldUseInheritedReviewVisibility;
+
     if (isNewPlace) {
       const { place_id: _, ...rest } = data;
       const placeFields = {
@@ -196,7 +291,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         visit_date: data.visit_date || null,
         ...placeFields,
         is_private: isPrivate,
-        visibility_user_ids: isPrivate ? visibleUserIds : [],
+        ...(includeReviewVisibilityUserIds ? { visibility_user_ids: visibleUserIds } : {}),
       };
     }
     return {
@@ -205,7 +300,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
       place_id: parseInt(data.place_id),
       visit_date: data.visit_date || null,
       is_private: isPrivate,
-      visibility_user_ids: isPrivate ? visibleUserIds : [],
+      ...(includeReviewVisibilityUserIds ? { visibility_user_ids: visibleUserIds } : {}),
     };
   };
 
@@ -472,6 +567,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
               <VisibilitySelector
                 selectedUserIds={newPlaceVisibilityUserIds}
                 onChange={setNewPlaceVisibilityUserIds}
+                onKnownUsersChange={setNewPlaceVisibilityUsers}
                 title={t('placeForm.shareWithUsers')}
                 description={t('visibility.inlinePlaceDescription')}
               />
@@ -548,13 +644,48 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         </div>
 
         {isPrivate && (
-          <VisibilitySelector
-            selectedUserIds={visibleUserIds}
-            knownUsers={initialData?.visibility_users || []}
-            onChange={setVisibleUserIds}
-            title={t('reviewForm.shareWithUsers')}
-            description={t('visibility.reviewDescription')}
-          />
+          <div className="space-y-3">
+            {currentPlaceIsPrivate && (
+              <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/40 dark:bg-blue-950/20 dark:text-blue-200">
+                <p>{t('reviewForm.placeVisibilityRestrictionNotice')}</p>
+              </div>
+            )}
+
+            {isEditMode && initialData?.place_visibility_mismatch && currentPlaceIsPrivate && currentPlaceVisibilityUserIds.length > 0 && !reviewVisibilityTouched && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+                <p>{t('reviewForm.placeVisibilityMismatchWarning')}</p>
+                <button
+                  type="button"
+                  onClick={handleApplyPlaceVisibilityDefaults}
+                  className="mt-2 text-sm font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
+                >
+                  {t('reviewForm.applyPlaceVisibilityDefaults')}
+                </button>
+              </div>
+            )}
+
+            {currentPlaceIsPrivate && reviewVisibilityOutsidePlaceIds.length > 0 && !reviewVisibilityTouched && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-200">
+                <p>{t('reviewForm.reviewVisibilityOutsidePlaceWarning')}</p>
+                <button
+                  type="button"
+                  onClick={handleKeepOnlyPlaceAllowedUsers}
+                  className="mt-2 text-sm font-medium text-primary-700 hover:text-primary-800 dark:text-primary-300 dark:hover:text-primary-200"
+                >
+                  {t('reviewForm.keepOnlyPlaceAllowedUsers')}
+                </button>
+              </div>
+            )}
+
+            <VisibilitySelector
+              selectedUserIds={visibleUserIds}
+              knownUsers={reviewVisibilityKnownUsers}
+              allowedUsers={currentPlaceIsPrivate ? currentPlaceVisibilityUsers : null}
+              onChange={handleReviewVisibilityChange}
+              title={t('reviewForm.shareWithUsers')}
+              description={t(currentPlaceIsPrivate ? 'visibility.reviewRestrictedDescription' : 'visibility.reviewDescription')}
+            />
+          </div>
         )}
       </div>
 

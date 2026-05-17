@@ -54,6 +54,13 @@ with app.app_context():
             ))
             conn.commit()
         print("✓ is_private column added to reviews table")
+    if "inherits_place_visibility" not in review_columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE reviews ADD COLUMN inherits_place_visibility BOOLEAN NOT NULL DEFAULT 0"
+            ))
+            conn.commit()
+        print("✓ inherits_place_visibility column added to reviews table")
 
     # Drop email column from users table (no longer used)
     user_columns = [col["name"] for col in inspector.get_columns("users")]

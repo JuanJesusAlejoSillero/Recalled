@@ -20,6 +20,78 @@ from app.utils.visibility import (
 places_bp = Blueprint("places", __name__)
 
 
+def _review_visibility_user_ids(review):
+    """Return the review allowlist as a list of user ids."""
+    if not review:
+        return []
+    return [user.id for user in review.visible_users]
+
+
+def _freeze_review_visibility_to_place_subset(review, allowed_user_ids):
+    """Keep a private review within the place allowlist without broadening access."""
+    current_review_user_ids = _review_visibility_user_ids(review)
+    pruned_user_ids = [user_id for user_id in current_review_user_ids if user_id in allowed_user_ids]
+    sync_visibility_users(
+        review,
+        requested_user_ids=pruned_user_ids,
+        owner_id=review.user_id,
+        is_private=bool(review.is_private),
+    )
+
+
+def _apply_place_visibility_transition(place, was_private, previous_place_user_ids):
+    """Apply place visibility changes to child reviews without broadening review access."""
+    current_place_user_ids = [user.id for user in place.visible_users]
+    current_place_user_id_set = set(current_place_user_ids)
+    place_became_private = not was_private and place.is_private
+    place_became_public = was_private and not place.is_private
+    private_allowlist_changed = (
+        was_private
+        and place.is_private
+        and previous_place_user_ids != current_place_user_ids
+    )
+
+    if not place_became_private and not place_became_public and not private_allowlist_changed:
+        return
+
+    for review in place.reviews.all():
+        if place_became_private:
+            if not review.is_private:
+                review.is_private = True
+                review.inherits_place_visibility = True
+                sync_visibility_users(
+                    review,
+                    requested_user_ids=current_place_user_ids,
+                    owner_id=review.user_id,
+                    is_private=True,
+                )
+                continue
+
+            if review.inherits_place_visibility:
+                sync_visibility_users(
+                    review,
+                    requested_user_ids=current_place_user_ids,
+                    owner_id=review.user_id,
+                    is_private=True,
+                )
+                continue
+
+            _freeze_review_visibility_to_place_subset(review, current_place_user_id_set)
+            continue
+
+        if place_became_public:
+            if review.inherits_place_visibility:
+                review.inherits_place_visibility = False
+            continue
+
+        if private_allowlist_changed:
+            if review.inherits_place_visibility:
+                review.inherits_place_visibility = False
+
+            if review.is_private:
+                _freeze_review_visibility_to_place_subset(review, current_place_user_id_set)
+
+
 def _user_context():
     """Return (current_user_id, is_admin) for the authenticated user."""
     user = get_current_user()
@@ -170,6 +242,8 @@ def update_place(place_id, validated_data):
     if not current_user.is_admin or validated_data.get("created_by") is None:
         validated_data.pop("created_by", None)
 
+    was_private = bool(place.is_private)
+    previous_place_user_ids = [user.id for user in place.visible_users]
     visibility_user_ids = validated_data.pop(
         "visibility_user_ids",
         [user.id for user in place.visible_users],
@@ -187,6 +261,7 @@ def update_place(place_id, validated_data):
             owner_id=final_owner_id,
             is_private=final_is_private,
         )
+        _apply_place_visibility_transition(place, was_private, previous_place_user_ids)
     except ValueError as err:
         db.session.rollback()
         return jsonify({"error": str(err)}), 400

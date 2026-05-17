@@ -58,10 +58,23 @@ function filterUsers(users, searchTerm) {
   return users.filter((candidate) => candidate.username.toLowerCase().includes(normalizedSearch));
 }
 
-function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, title, description }) {
+function VisibilitySelector({ selectedUserIds = [], knownUsers = [], allowedUsers = null, onChange, onKnownUsersChange, title, description }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const isAdmin = Boolean(user?.is_admin);
+  const hasAllowedUsersConstraint = allowedUsers !== null;
+  const normalizedAllowedUsers = useMemo(
+    () => sortUsers(mergeUsers(allowedUsers || [])),
+    [allowedUsers]
+  );
+  const allowedUserIdsKey = useMemo(
+    () => normalizedAllowedUsers.map((allowedUser) => allowedUser.id).join(','),
+    [normalizedAllowedUsers]
+  );
+  const allowedUserIds = useMemo(
+    () => new Set(normalizedAllowedUsers.map((allowedUser) => allowedUser.id)),
+    [allowedUserIdsKey, normalizedAllowedUsers]
+  );
   const storageKey = useMemo(
     () => (user?.id ? `recalled.visibilityKnownUsers.v1.user.${user.id}` : null),
     [user?.id]
@@ -110,8 +123,21 @@ function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, t
     }
   }, [rememberedUsers, storageKey]);
 
+  useEffect(() => {
+    if (onKnownUsersChange) {
+      onKnownUsersChange(rememberedUsers);
+    }
+  }, [onKnownUsersChange, rememberedUsers]);
+
   const normalizedIds = normalizeUserIds(selectedUserIds);
   const trimmedSearch = search.trim();
+  const isUserAllowed = (candidateUser) => {
+    if (!hasAllowedUsersConstraint) {
+      return true;
+    }
+
+    return allowedUserIds.has(Number(candidateUser?.id));
+  };
 
   useEffect(() => {
     if (!isAdmin) {
@@ -167,8 +193,13 @@ function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, t
     );
     if (exactKnownUser) {
       setSearching(false);
-      setLookupResult(exactKnownUser);
-      setLookupState('found');
+      if (isUserAllowed(exactKnownUser)) {
+        setLookupResult(exactKnownUser);
+        setLookupState('found');
+      } else {
+        setLookupResult(null);
+        setLookupState('not-allowed');
+      }
       return undefined;
     }
 
@@ -182,6 +213,12 @@ function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, t
         }
 
         const foundUser = normalizeUser(data.users?.[0]);
+        if (foundUser && !isUserAllowed(foundUser)) {
+          setLookupResult(null);
+          setLookupState('not-allowed');
+          return;
+        }
+
         setLookupResult(foundUser);
         setLookupState(foundUser ? 'found' : 'not-found');
       } catch {
@@ -200,7 +237,7 @@ function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, t
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [isAdmin, trimmedSearch, rememberedUsers]);
+  }, [allowedUserIdsKey, hasAllowedUsersConstraint, isAdmin, trimmedSearch, rememberedUsers]);
 
   const rememberUser = (userToRemember) => {
     setRememberedUsers((currentUsers) => mergeKnownUsers([userToRemember], currentUsers));
@@ -209,10 +246,13 @@ function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, t
   const listedUsers = isAdmin
     ? filterUsers(sortUsers(mergeUsers(availableUsers, knownUsers, rememberedUsers)), trimmedSearch)
     : rememberedUsers;
+  const visibleListedUsers = hasAllowedUsersConstraint
+    ? listedUsers.filter(isUserAllowed)
+    : listedUsers;
 
   const toggleUser = (candidateUser) => {
     const normalizedUser = normalizeUser(candidateUser);
-    if (!normalizedUser) {
+    if (!normalizedUser || !isUserAllowed(normalizedUser)) {
       return;
     }
 
@@ -269,6 +309,8 @@ function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, t
                 </label>
               ) : lookupState === 'error' ? (
                 <p className="px-3 py-3 text-sm text-red-600 dark:text-red-400">{t('visibility.lookupError')}</p>
+              ) : lookupState === 'not-allowed' ? (
+                <p className="px-3 py-3 text-sm text-amber-700 dark:text-amber-300">{t('visibility.notAllowedForPlace')}</p>
               ) : lookupState === 'not-found' ? (
                 <p className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">{t('visibility.notFound')}</p>
               ) : null}
@@ -282,9 +324,9 @@ function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, t
             <div className="max-h-44 overflow-y-auto rounded-lg border border-amber-200 bg-white dark:border-amber-900/40 dark:bg-gray-900">
               {isAdmin && availableUsersState === 'loading' ? (
                 <p className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">{t('visibility.loading')}</p>
-              ) : isAdmin && availableUsersState === 'error' && listedUsers.length === 0 ? (
+              ) : isAdmin && availableUsersState === 'error' && visibleListedUsers.length === 0 ? (
                 <p className="px-3 py-4 text-sm text-red-600 dark:text-red-400">{t('visibility.listError')}</p>
-              ) : listedUsers.length > 0 ? listedUsers.map((knownUser) => {
+              ) : visibleListedUsers.length > 0 ? visibleListedUsers.map((knownUser) => {
                 const checked = normalizedIds.includes(knownUser.id);
                 return (
                   <label
@@ -302,7 +344,11 @@ function VisibilitySelector({ selectedUserIds = [], knownUsers = [], onChange, t
                 );
               }) : (
                 <p className="px-3 py-4 text-sm text-gray-500 dark:text-gray-400">
-                  {t(isAdmin ? (trimmedSearch ? 'visibility.noSearchResults' : 'visibility.noUsers') : 'visibility.noKnownUsers')}
+                  {t(
+                    hasAllowedUsersConstraint
+                      ? 'visibility.noAllowedUsers'
+                      : (isAdmin ? (trimmedSearch ? 'visibility.noSearchResults' : 'visibility.noUsers') : 'visibility.noKnownUsers')
+                  )}
                 </p>
               )}
             </div>

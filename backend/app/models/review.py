@@ -41,6 +41,7 @@ class Review(db.Model):
     comment = db.Column(db.Text)
     visit_date = db.Column(db.Date)
     is_private = db.Column(db.Boolean, default=False, nullable=False)
+    inherits_place_visibility = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(
         db.DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -96,6 +97,19 @@ class Review(db.Model):
                 is_admin=is_admin,
             )
         )
+        effective_users = self.visible_users
+        effective_is_private = bool(self.is_private)
+        if not effective_is_private and self.place and self.place.is_private:
+            effective_users = self.place.visible_users
+            effective_is_private = True
+
+        effective_visibility = build_visibility_metadata(
+            effective_users,
+            effective_is_private,
+            owner_id=self.user_id,
+        )
+        data["effective_visibility_mode"] = effective_visibility["visibility_mode"]
+        data["effective_shared_with_count"] = effective_visibility["shared_with_count"]
         if include_photos:
             data["photos"] = [p.to_dict() for p in self.photos]
         return data

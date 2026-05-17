@@ -48,6 +48,18 @@ def _create_place(app, name, created_by, is_private=False):
         return place.id
 
 
+def _set_place_visible_users(app, place_id, user_ids):
+    from app import db
+    from app.models.place import Place
+    from app.models.user import User
+
+    with app.app_context():
+        place = db.session.get(Place, place_id)
+        assert place is not None
+        place.visible_users = User.query.filter(User.id.in_(user_ids or [])).all()
+        db.session.commit()
+
+
 def _create_review(app, user_id, place_id, rating=5, is_private=False, title="Review"):
     from app import db
     from app.models.review import Review
@@ -315,6 +327,517 @@ def test_private_place_and_review_can_be_shared_with_selected_users(app, client)
 
     assert charlie_place_response.status_code == 404
     assert charlie_review_response.status_code == 404
+
+
+def test_private_review_inherits_place_allowlist_when_visibility_is_omitted(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    _create_user(app, "charlie")
+    place_id = _create_place(app, "Inherited Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Inherited Review",
+            "is_private": True,
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert create_response.status_code == 201
+    created_review = create_response.get_json()
+    assert created_review["is_private"] is True
+    assert created_review["visibility_user_ids"] == [bob_id]
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{created_review['id']}")
+    assert bob_response.status_code == 200
+
+    _login_session(client, "charlie")
+    charlie_response = client.get(f"/api/v1/reviews/{created_review['id']}")
+    assert charlie_response.status_code == 404
+
+
+def test_private_review_keeps_explicit_empty_allowlist_on_private_place(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    place_id = _create_place(app, "Explicit Empty Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Author Only Review",
+            "is_private": True,
+            "visibility_user_ids": [],
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert create_response.status_code == 201
+    created_review = create_response.get_json()
+    assert created_review["visibility_user_ids"] == []
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{created_review['id']}")
+    assert bob_response.status_code == 404
+
+
+def test_private_review_rejects_users_outside_private_place_allowlist_on_create(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    charlie_id = _create_user(app, "charlie")
+    place_id = _create_place(app, "Restricted Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+
+    _login_session(client, "alice")
+    response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Invalid Shared Review",
+            "is_private": True,
+            "visibility_user_ids": [charlie_id],
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Review visibility users must already be allowed on the private place"
+
+
+def test_private_review_update_preserves_inherited_place_allowlist_when_visibility_is_omitted(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    place_id = _create_place(app, "Inherited Edit Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 4,
+            "title": "Inherited Review",
+            "is_private": True,
+        },
+        headers=_csrf_headers(client),
+    )
+    assert create_response.status_code == 201
+    review_id = create_response.get_json()["id"]
+
+    update_response = client.put(
+        f"/api/v1/reviews/{review_id}",
+        json={"title": "Still Inherited"},
+        headers=_csrf_headers(client),
+    )
+
+    assert update_response.status_code == 200
+    updated_review = update_response.get_json()
+    assert updated_review["title"] == "Still Inherited"
+    assert updated_review["visibility_user_ids"] == [bob_id]
+    assert updated_review["inherits_place_visibility"] is True
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert bob_response.status_code == 200
+
+
+def test_private_review_update_preserves_explicit_empty_allowlist_when_visibility_is_omitted(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    place_id = _create_place(app, "Explicit Empty Edit Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Custom Empty Review",
+            "is_private": True,
+            "visibility_user_ids": [],
+        },
+        headers=_csrf_headers(client),
+    )
+    assert create_response.status_code == 201
+    review_id = create_response.get_json()["id"]
+
+    update_response = client.put(
+        f"/api/v1/reviews/{review_id}",
+        json={"comment": "still author-only"},
+        headers=_csrf_headers(client),
+    )
+
+    assert update_response.status_code == 200
+    updated_review = update_response.get_json()
+    assert updated_review["visibility_user_ids"] == []
+    assert updated_review["inherits_place_visibility"] is False
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert bob_response.status_code == 404
+
+
+def test_private_review_update_rejects_users_outside_private_place_allowlist(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    charlie_id = _create_user(app, "charlie")
+    place_id = _create_place(app, "Restricted Edit Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Initially Valid Review",
+            "is_private": True,
+            "visibility_user_ids": [bob_id],
+        },
+        headers=_csrf_headers(client),
+    )
+    assert create_response.status_code == 201
+    review_id = create_response.get_json()["id"]
+
+    update_response = client.put(
+        f"/api/v1/reviews/{review_id}",
+        json={
+            "visibility_user_ids": [charlie_id],
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert update_response.status_code == 400
+    assert update_response.get_json()["error"] == "Review visibility users must already be allowed on the private place"
+
+
+def test_private_review_omitted_visibility_prunes_users_outside_private_place_allowlist(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    charlie_id = _create_user(app, "charlie")
+    place_id = _create_place(app, "Legacy Restricted Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+    review_id = _create_review(
+        app,
+        user_id=alice_id,
+        place_id=place_id,
+        rating=5,
+        is_private=True,
+        title="Legacy Invalid Review",
+    )
+
+    with app.app_context():
+        from app import db
+        from app.models.review import Review
+        from app.models.user import User
+
+        review = db.session.get(Review, review_id)
+        review.visible_users = User.query.filter(User.id.in_([bob_id, charlie_id])).all()
+        review.inherits_place_visibility = False
+        db.session.commit()
+
+    _login_session(client, "alice")
+    update_response = client.put(
+        f"/api/v1/reviews/{review_id}",
+        json={"comment": "touch unrelated field"},
+        headers=_csrf_headers(client),
+    )
+
+    assert update_response.status_code == 200
+    updated_review = update_response.get_json()
+    assert updated_review["visibility_user_ids"] == [bob_id]
+
+    _login_session(client, "charlie")
+    charlie_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert charlie_response.status_code == 404
+
+
+def test_private_review_moving_to_new_private_place_inherits_new_place_allowlist(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    charlie_id = _create_user(app, "charlie")
+    first_place_id = _create_place(app, "First Private Place", created_by=alice_id, is_private=True)
+    second_place_id = _create_place(app, "Second Private Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, first_place_id, [bob_id])
+    _set_place_visible_users(app, second_place_id, [charlie_id])
+
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": first_place_id,
+            "rating": 5,
+            "title": "Movable Review",
+            "is_private": True,
+        },
+        headers=_csrf_headers(client),
+    )
+    assert create_response.status_code == 201
+    review_id = create_response.get_json()["id"]
+
+    move_response = client.put(
+        f"/api/v1/reviews/{review_id}",
+        json={
+            "place_id": second_place_id,
+            "title": "Moved Review",
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert move_response.status_code == 200
+    moved_review = move_response.get_json()
+    assert moved_review["place_id"] == second_place_id
+    assert moved_review["visibility_user_ids"] == [charlie_id]
+    assert moved_review["inherits_place_visibility"] is True
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert bob_response.status_code == 404
+
+    _login_session(client, "charlie")
+    charlie_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert charlie_response.status_code == 200
+
+
+def test_public_review_saved_as_private_on_private_place_inherits_place_allowlist(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    place_id = _create_place(app, "Public Then Private Place", created_by=alice_id, is_private=False)
+    review_id = _create_review(
+        app,
+        user_id=alice_id,
+        place_id=place_id,
+        rating=4,
+        is_private=False,
+        title="Existing Public Review",
+    )
+
+    _login_session(client, "alice")
+    place_update_response = client.put(
+        f"/api/v1/places/{place_id}",
+        json={
+            "is_private": True,
+            "visibility_user_ids": [bob_id],
+        },
+        headers=_csrf_headers(client),
+    )
+    assert place_update_response.status_code == 200
+
+    review_update_response = client.put(
+        f"/api/v1/reviews/{review_id}",
+        json={
+            "title": "Now inherited from place",
+            "is_private": True,
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert review_update_response.status_code == 200
+    updated_review = review_update_response.get_json()
+    assert updated_review["is_private"] is True
+    assert updated_review["visibility_user_ids"] == [bob_id]
+    assert updated_review["inherits_place_visibility"] is True
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert bob_response.status_code == 200
+
+
+def test_place_becoming_private_snapshots_existing_public_reviews(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    _create_user(app, "charlie")
+    place_id = _create_place(app, "Transition Place", created_by=alice_id, is_private=False)
+    review_id = _create_review(
+        app,
+        user_id=alice_id,
+        place_id=place_id,
+        rating=5,
+        is_private=False,
+        title="Existing Public Review",
+    )
+
+    _login_session(client, "alice")
+    place_update_response = client.put(
+        f"/api/v1/places/{place_id}",
+        json={
+            "is_private": True,
+            "visibility_user_ids": [bob_id],
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert place_update_response.status_code == 200
+
+    owner_review_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert owner_review_response.status_code == 200
+    review_data = owner_review_response.get_json()
+    assert review_data["is_private"] is True
+    assert review_data["visibility_user_ids"] == [bob_id]
+    assert review_data["inherits_place_visibility"] is True
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert bob_response.status_code == 200
+
+
+def test_public_review_on_private_place_reports_effective_shared_visibility(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    place_id = _create_place(app, "Restricted Badge Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+    review_id = _create_review(
+        app,
+        user_id=alice_id,
+        place_id=place_id,
+        rating=5,
+        is_private=False,
+        title="Public Within Private Place",
+    )
+
+    _login_session(client, "alice")
+    review_response = client.get(f"/api/v1/reviews/{review_id}")
+
+    assert review_response.status_code == 200
+    review_data = review_response.get_json()
+    assert review_data["is_private"] is False
+    assert review_data["visibility_mode"] == "public"
+    assert review_data["effective_visibility_mode"] == "shared"
+
+
+def test_private_place_allowlist_changes_do_not_broaden_existing_review_access(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    charlie_id = _create_user(app, "charlie")
+    place_id = _create_place(app, "Inherited Rebase Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Inherited Review",
+            "is_private": True,
+        },
+        headers=_csrf_headers(client),
+    )
+    assert create_response.status_code == 201
+    review_id = create_response.get_json()["id"]
+
+    update_place_response = client.put(
+        f"/api/v1/places/{place_id}",
+        json={
+            "visibility_user_ids": [bob_id, charlie_id],
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert update_place_response.status_code == 200
+
+    owner_review_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert owner_review_response.status_code == 200
+    owner_review_data = owner_review_response.get_json()
+    assert owner_review_data["visibility_user_ids"] == [bob_id]
+    assert owner_review_data["inherits_place_visibility"] is False
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert bob_response.status_code == 200
+
+    _login_session(client, "charlie")
+    charlie_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert charlie_response.status_code == 404
+
+
+def test_private_place_becoming_public_keeps_review_snapshot_private(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    charlie_id = _create_user(app, "charlie")
+    place_id = _create_place(app, "Inherited Release Place", created_by=alice_id, is_private=True)
+    _set_place_visible_users(app, place_id, [bob_id])
+
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Inherited Review",
+            "is_private": True,
+        },
+        headers=_csrf_headers(client),
+    )
+    assert create_response.status_code == 201
+    review_id = create_response.get_json()["id"]
+
+    update_place_response = client.put(
+        f"/api/v1/places/{place_id}",
+        json={
+            "is_private": False,
+            "visibility_user_ids": [],
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert update_place_response.status_code == 200
+
+    owner_review_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert owner_review_response.status_code == 200
+    review_data = owner_review_response.get_json()
+    assert review_data["is_private"] is True
+    assert review_data["visibility_mode"] == "shared"
+    assert review_data["effective_visibility_mode"] == "shared"
+    assert review_data["inherits_place_visibility"] is False
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert bob_response.status_code == 200
+
+    _login_session(client, "charlie")
+    charlie_response = client.get(f"/api/v1/reviews/{review_id}")
+    assert charlie_response.status_code == 404
+
+
+def test_inline_private_place_review_inherits_inline_place_allowlist(app, client):
+    _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    _create_user(app, "charlie")
+
+    _login_session(client, "alice")
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_name": "Inline Private Place",
+            "place_is_private": True,
+            "place_visibility_user_ids": [bob_id],
+            "rating": 5,
+            "title": "Inline Private Review",
+            "is_private": True,
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert create_response.status_code == 201
+    created_review = create_response.get_json()
+    assert created_review["is_private"] is True
+    assert created_review["visibility_user_ids"] == [bob_id]
+    assert created_review["inherits_place_visibility"] is True
+
+    _login_session(client, "bob")
+    bob_response = client.get(f"/api/v1/reviews/{created_review['id']}")
+    assert bob_response.status_code == 200
 
 
 def test_password_change_invalidates_existing_tokens(app, client):

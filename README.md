@@ -12,7 +12,7 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Place ownership** - Track place creators, admin can reassign ownership
 - **Reviews** - Write reviews with 1-5 star ratings, titles, comments, and visit dates
 - **Selective visibility** - Private places and reviews can be shared with specific users through per-item allowlists
-- **Privacy-aware defaults** - Reviews for private places are auto-marked as private, with confirmation dialogs for mismatched privacy settings and independent sharing controls
+- **Privacy-aware defaults** - Reviews for private places are auto-marked as private, inherit the place allowlist by default, and still support explicit review-level sharing overrides when needed
 - **Photos** - Upload up to 5 photos per review with automatic thumbnail generation
 - **Unsaved changes protection** - Navigation guards warn before losing unsaved work in review and place forms (in-app navigation, browser close, and back/forward)
 - **Admin panel** - User management and general statistics
@@ -118,7 +118,7 @@ Set `PROXY_FIX_X_FOR=2` when Recalled sits behind an additional reverse proxy th
 - **Public place**: visible to every authenticated user.
 - **Private place**: visible to its creator, admins, and any users explicitly selected in the place allowlist.
 - **Public review**: visible to everyone who can already access its place.
-- **Private review**: visible to its author, admins, and any users explicitly selected in the review allowlist, as long as they can also access the parent place.
+- **Private review**: visible to its author, admins, and any users explicitly selected in the review allowlist, as long as they can also access the parent place. When a private review is created for a private place without an explicit review allowlist, it inherits the place allowlist by default. If a review uses its own explicit allowlist on a private place, that list must remain a subset of the place allowlist.
 - **Photos**: inherit both place and review visibility and are served only through authenticated `/api/v1/media/...` endpoints.
 
 ## Project Structure

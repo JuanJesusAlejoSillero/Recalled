@@ -13,7 +13,9 @@ function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) 
 
   const isOwner = currentUser && review.user_id === currentUser.id;
   const isAdmin = currentUser?.is_admin;
-  const visibilityMode = review.visibility_mode || (review.is_private ? 'private' : 'public');
+  const visibilityMode = review.effective_visibility_mode
+    || review.visibility_mode
+    || (review.is_private ? 'private' : 'public');
   const VisibilityIcon = visibilityMode === 'shared' ? FiUsers : FiLock;
   const visibilityBadgeClass = visibilityMode === 'shared'
     ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
