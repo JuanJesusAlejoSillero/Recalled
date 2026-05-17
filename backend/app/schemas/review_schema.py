@@ -37,6 +37,7 @@ def _place_inline_fields():
         "place_latitude": fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90)),
         "place_longitude": fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180)),
         "place_is_private": fields.Bool(load_default=False),
+        "place_visibility_user_ids": fields.List(fields.Int(validate=validate.Range(min=1)), load_default=list),
     }
 
 
@@ -57,6 +58,10 @@ class ReviewCreateSchema(Schema):
     comment = fields.Str(allow_none=True, load_default=None)
     visit_date = fields.Date(allow_none=True, load_default=None)
     is_private = fields.Bool(load_default=False)
+    visibility_user_ids = fields.List(
+        fields.Int(validate=validate.Range(min=1)),
+        load_default=list,
+    )
 
     # Inline place fields
     place_name = fields.Str(load_default=None, validate=validate.Length(min=1, max=200))
@@ -65,6 +70,10 @@ class ReviewCreateSchema(Schema):
     place_latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
     place_longitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180))
     place_is_private = fields.Bool(load_default=False)
+    place_visibility_user_ids = fields.List(
+        fields.Int(validate=validate.Range(min=1)),
+        load_default=list,
+    )
 
     @pre_load
     def sanitize(self, data, **kwargs):
@@ -85,6 +94,9 @@ class ReviewUpdateSchema(Schema):
     comment = fields.Str(allow_none=True)
     visit_date = fields.Date(allow_none=True)
     is_private = fields.Bool()
+    visibility_user_ids = fields.List(
+        fields.Int(validate=validate.Range(min=1)),
+    )
 
     # Inline place fields
     place_name = fields.Str(load_default=None, validate=validate.Length(min=1, max=200))
@@ -93,6 +105,9 @@ class ReviewUpdateSchema(Schema):
     place_latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
     place_longitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180))
     place_is_private = fields.Bool(load_default=False)
+    place_visibility_user_ids = fields.List(
+        fields.Int(validate=validate.Range(min=1)),
+    )
 
     @pre_load
     def sanitize(self, data, **kwargs):

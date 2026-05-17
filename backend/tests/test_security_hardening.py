@@ -136,6 +136,75 @@ def test_user_stats_requires_self_or_admin(app, client):
     assert response.get_json()["error"] == "Permission denied"
 
 
+def test_shareable_user_lookup_requires_exact_match_and_hides_full_list(app, client):
+    _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    _create_user(app, "charlie")
+
+    _login_session(client, "alice")
+
+    blank_response = client.get("/api/v1/users/shareable")
+    partial_response = client.get("/api/v1/users/shareable", query_string={"search": "bo"})
+    exact_response = client.get("/api/v1/users/shareable", query_string={"search": "bob"})
+    mixed_case_response = client.get("/api/v1/users/shareable", query_string={"search": "BoB"})
+
+    assert blank_response.status_code == 200
+    assert blank_response.get_json() == {"users": [], "total": 0}
+
+    assert partial_response.status_code == 200
+    assert partial_response.get_json() == {"users": [], "total": 0}
+
+    assert exact_response.status_code == 200
+    assert exact_response.get_json() == {
+        "users": [{"id": bob_id, "username": "bob"}],
+        "total": 1,
+    }
+
+    assert mixed_case_response.status_code == 200
+    assert mixed_case_response.get_json() == {
+        "users": [{"id": bob_id, "username": "bob"}],
+        "total": 1,
+    }
+
+
+def test_admin_shareable_user_lookup_lists_all_users_and_filters_results(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    charlie_id = _create_user(app, "charlie")
+    _create_user(app, "admin", is_admin=True)
+
+    _login_session(client, "admin")
+
+    blank_response = client.get("/api/v1/users/shareable")
+    partial_response = client.get("/api/v1/users/shareable", query_string={"search": "bo"})
+    mixed_case_response = client.get("/api/v1/users/shareable", query_string={"search": "LI"})
+
+    assert blank_response.status_code == 200
+    assert blank_response.get_json() == {
+        "users": [
+            {"id": alice_id, "username": "alice"},
+            {"id": bob_id, "username": "bob"},
+            {"id": charlie_id, "username": "charlie"},
+        ],
+        "total": 3,
+    }
+
+    assert partial_response.status_code == 200
+    assert partial_response.get_json() == {
+        "users": [{"id": bob_id, "username": "bob"}],
+        "total": 1,
+    }
+
+    assert mixed_case_response.status_code == 200
+    assert mixed_case_response.get_json() == {
+        "users": [
+            {"id": alice_id, "username": "alice"},
+            {"id": charlie_id, "username": "charlie"},
+        ],
+        "total": 2,
+    }
+
+
 def test_private_place_reviews_are_hidden_and_protected(app, client):
     alice_id = _create_user(app, "alice")
     _create_user(app, "bob")
@@ -195,6 +264,57 @@ def test_private_place_reviews_are_hidden_and_protected(app, client):
     created_review = create_response.get_json()
     assert created_review["is_private"] is True
     assert _get_review(app, created_review["id"])["is_private"] is True
+
+
+def test_private_place_and_review_can_be_shared_with_selected_users(app, client):
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    _create_user(app, "charlie")
+
+    _login_session(client, "alice")
+    place_response = client.post(
+        "/api/v1/places",
+        json={
+            "name": "Shared Secret Place",
+            "is_private": True,
+            "visibility_user_ids": [bob_id],
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert place_response.status_code == 201
+    place_id = place_response.get_json()["id"]
+
+    review_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Shared Secret Review",
+            "is_private": True,
+            "visibility_user_ids": [bob_id],
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert review_response.status_code == 201
+    review_id = review_response.get_json()["id"]
+
+    _login_session(client, "bob")
+    bob_place_response = client.get(f"/api/v1/places/{place_id}")
+    bob_review_response = client.get(f"/api/v1/reviews/{review_id}")
+    bob_list_response = client.get("/api/v1/reviews", query_string={"place_id": place_id})
+
+    assert bob_place_response.status_code == 200
+    assert bob_review_response.status_code == 200
+    assert [review["id"] for review in bob_list_response.get_json()["reviews"]] == [review_id]
+
+    _login_session(client, "charlie")
+    charlie_place_response = client.get(f"/api/v1/places/{place_id}")
+    charlie_review_response = client.get(f"/api/v1/reviews/{review_id}")
+
+    assert charlie_place_response.status_code == 404
+    assert charlie_review_response.status_code == 404
 
 
 def test_password_change_invalidates_existing_tokens(app, client):
@@ -386,3 +506,55 @@ def test_media_requires_auth_and_visibility(app, client):
     # Old /uploads/ path must be dead
     legacy_response = client.get("/uploads/photos/secret.jpg")
     assert legacy_response.status_code == 404
+
+
+def test_shared_private_media_is_available_only_to_selected_users(app, client):
+    """Whitelist-based visibility must also protect authenticated media."""
+    import os
+
+    alice_id = _create_user(app, "alice")
+    bob_id = _create_user(app, "bob")
+    _create_user(app, "charlie")
+
+    _login_session(client, "alice")
+    place_response = client.post(
+        "/api/v1/places",
+        json={
+            "name": "Shared Photo Spot",
+            "is_private": True,
+            "visibility_user_ids": [bob_id],
+        },
+        headers=_csrf_headers(client),
+    )
+    assert place_response.status_code == 201
+    place_id = place_response.get_json()["id"]
+
+    review_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": place_id,
+            "rating": 5,
+            "title": "Shared Photo Review",
+            "is_private": True,
+            "visibility_user_ids": [bob_id],
+        },
+        headers=_csrf_headers(client),
+    )
+    assert review_response.status_code == 201
+    review_id = review_response.get_json()["id"]
+
+    _create_photo(app, review_id, filename="shared-secret.jpg")
+
+    with app.app_context():
+        photos_dir = os.path.join(app.config["UPLOAD_FOLDER"], "photos")
+        os.makedirs(photos_dir, exist_ok=True)
+        with open(os.path.join(photos_dir, "shared-secret.jpg"), "wb") as file_handle:
+            file_handle.write(b"\xff\xd8\xffSHARED")
+
+    _login_session(client, "bob")
+    bob_response = client.get("/api/v1/media/photos/shared-secret.jpg")
+    assert bob_response.status_code == 200
+
+    _login_session(client, "charlie")
+    charlie_response = client.get("/api/v1/media/photos/shared-secret.jpg")
+    assert charlie_response.status_code == 404

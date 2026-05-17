@@ -113,6 +113,29 @@ with app.app_context():
             conn.commit()
         print("✓ totp_last_counter column added to users table")
 
+    # Create sharing tables used by whitelist visibility controls
+    with db.engine.connect() as conn:
+        conn.execute(sqlalchemy.text(
+            "CREATE TABLE IF NOT EXISTS place_visible_users ("
+            "place_id INTEGER NOT NULL REFERENCES places(id) ON DELETE CASCADE, "
+            "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+            "PRIMARY KEY (place_id, user_id))"
+        ))
+        conn.execute(sqlalchemy.text(
+            "CREATE TABLE IF NOT EXISTS review_visible_users ("
+            "review_id INTEGER NOT NULL REFERENCES reviews(id) ON DELETE CASCADE, "
+            "user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE, "
+            "PRIMARY KEY (review_id, user_id))"
+        ))
+        conn.execute(sqlalchemy.text(
+            "CREATE INDEX IF NOT EXISTS ix_place_visible_users_user_id ON place_visible_users (user_id)"
+        ))
+        conn.execute(sqlalchemy.text(
+            "CREATE INDEX IF NOT EXISTS ix_review_visible_users_user_id ON review_visible_users (user_id)"
+        ))
+        conn.commit()
+    print("✓ sharing visibility tables verified")
+
     print("✓ Base de datos verificada")
 
     # Create the administrator user if it does not exist

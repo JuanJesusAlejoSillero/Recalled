@@ -5,6 +5,23 @@ from datetime import datetime, timezone
 from app import db
 
 
+place_visible_users = db.Table(
+    "place_visible_users",
+    db.Column(
+        "place_id",
+        db.Integer,
+        db.ForeignKey("places.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    db.Column(
+        "user_id",
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
 class Place(db.Model):
     """Place model."""
 
@@ -30,6 +47,13 @@ class Place(db.Model):
         "Review", backref="place", lazy="dynamic", cascade="all, delete-orphan"
     )
     creator = db.relationship("User", foreign_keys=[created_by])
+    visible_users = db.relationship(
+        "User",
+        secondary=place_visible_users,
+        lazy="selectin",
+        passive_deletes=True,
+        order_by="User.username.asc()",
+    )
 
     @property
     def avg_rating(self) -> float | None:
@@ -49,19 +73,15 @@ class Place(db.Model):
         """Count total reviews for this place."""
         return self.reviews.count()
 
-    def _review_privacy_filters(self, current_user_id=None, is_admin=False):
-        """Build SQLAlchemy filters for review privacy."""
+    def _review_visibility_filters(self, current_user_id=None, is_admin=False):
+        """Build SQLAlchemy filters for reviews visible from this place."""
         from app.models.review import Review
+        from app.utils.visibility import review_visibility_filter
 
-        filters = [Review.place_id == self.id]
-        if not is_admin:
-            if current_user_id:
-                filters.append(
-                    db.or_(Review.is_private == False, Review.user_id == current_user_id)
-                )
-            else:
-                filters.append(Review.is_private == False)
-        return filters
+        return [
+            Review.place_id == self.id,
+            review_visibility_filter(current_user_id=current_user_id, is_admin=is_admin),
+        ]
 
     def to_dict(self, include_reviews: bool = False,
                 current_user_id: int | None = None,
@@ -74,7 +94,9 @@ class Place(db.Model):
         from sqlalchemy import func
         from app.models.review import Review
 
-        filters = self._review_privacy_filters(current_user_id, is_admin)
+        from app.utils.visibility import build_visibility_metadata
+
+        filters = self._review_visibility_filters(current_user_id, is_admin)
 
         avg_result = (
             db.session.query(func.avg(Review.rating))
@@ -101,13 +123,25 @@ class Place(db.Model):
             "review_count": visible_count or 0,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+        data.update(
+            build_visibility_metadata(
+                self.visible_users,
+                self.is_private,
+                owner_id=self.created_by,
+                current_user_id=current_user_id,
+                is_admin=is_admin,
+            )
+        )
         if include_reviews:
             visible = (
                 Review.query.filter(*filters)
                 .order_by(Review.created_at.desc())
                 .all()
             )
-            data["reviews"] = [r.to_dict() for r in visible]
+            data["reviews"] = [
+                r.to_dict(current_user_id=current_user_id, is_admin=is_admin)
+                for r in visible
+            ]
         return data
 
     def __repr__(self):

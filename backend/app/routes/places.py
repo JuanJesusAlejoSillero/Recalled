@@ -10,6 +10,12 @@ from app.models.review import Review
 from app.middleware.auth import admin_required, get_current_user
 from app.middleware.validators import validate_json
 from app.schemas.place_schema import PlaceCreateSchema, PlaceUpdateSchema
+from app.utils.visibility import (
+    can_view_place,
+    place_visibility_filter,
+    review_visibility_filter,
+    sync_visibility_users,
+)
 
 places_bp = Blueprint("places", __name__)
 
@@ -24,30 +30,19 @@ def _user_context():
 
 def _visible_reviews_subquery(current_user_id, is_admin):
     """Subquery that counts visible reviews per place for the given user."""
-    query = db.session.query(
+    return db.session.query(
         Review.place_id,
         func.count(Review.id).label("visible_count"),
         func.avg(Review.rating).label("avg_r"),
-    )
-    if not is_admin:
-        if current_user_id:
-            query = query.filter(
-                db.or_(Review.is_private == False, Review.user_id == current_user_id)
-            )
-        else:
-            query = query.filter(Review.is_private == False)
-    return query.group_by(Review.place_id).subquery()
+    ).filter(
+        review_visibility_filter(current_user_id=current_user_id, is_admin=is_admin)
+    ).group_by(Review.place_id).subquery()
 
 
 def _place_visible_to_user(place, current_user_id, is_admin):
     """Check if a place is visible to the given user."""
-    if is_admin:
-        return True
-    if not place.is_private:
-        return True
-    if current_user_id and place.created_by == current_user_id:
-        return True
-    return False
+    current_user = get_current_user()
+    return can_view_place(place, current_user)
 
 
 @places_bp.route("", methods=["GET"])
@@ -72,14 +67,9 @@ def list_places():
     # Left join: include places even if they have no visible reviews
     query = Place.query.outerjoin(vis_sub, Place.id == vis_sub.c.place_id)
 
-    # Visibility filter: public places OR user's own private places OR admin sees all
-    if not is_admin:
-        query = query.filter(
-            db.or_(
-                Place.is_private == False,
-                Place.created_by == current_user_id,
-            )
-        )
+    query = query.filter(
+        place_visibility_filter(current_user_id=current_user_id, is_admin=is_admin)
+    )
 
     if category:
         query = query.filter(Place.category == category)
@@ -134,15 +124,32 @@ def get_place(place_id):
 @validate_json(PlaceCreateSchema)
 def create_place(validated_data):
     """Create a new place. The creator is recorded."""
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({"error": "Authentication required"}), 401
+
     user_id = int(get_jwt_identity())
     # Ignore any created_by from input; always use the authenticated user
     validated_data.pop("created_by", None)
+    visibility_user_ids = validated_data.pop("visibility_user_ids", [])
+
     place = Place(created_by=user_id, **validated_data)
     db.session.add(place)
+
+    try:
+        sync_visibility_users(
+            place,
+            requested_user_ids=visibility_user_ids,
+            owner_id=user_id,
+            is_private=place.is_private,
+        )
+    except ValueError as err:
+        db.session.rollback()
+        return jsonify({"error": str(err)}), 400
+
     db.session.commit()
 
-    current_user_id, is_admin = _user_context()
-    return jsonify(place.to_dict(current_user_id=current_user_id, is_admin=is_admin)), 201
+    return jsonify(place.to_dict(current_user_id=current_user.id, is_admin=current_user.is_admin)), 201
 
 
 @places_bp.route("/<int:place_id>", methods=["PUT"])
@@ -163,8 +170,26 @@ def update_place(place_id, validated_data):
     if not current_user.is_admin or validated_data.get("created_by") is None:
         validated_data.pop("created_by", None)
 
+    visibility_user_ids = validated_data.pop(
+        "visibility_user_ids",
+        [user.id for user in place.visible_users],
+    )
+    final_owner_id = validated_data.get("created_by", place.created_by)
+    final_is_private = validated_data.get("is_private", place.is_private)
+
     for key, value in validated_data.items():
         setattr(place, key, value)
+
+    try:
+        sync_visibility_users(
+            place,
+            requested_user_ids=visibility_user_ids,
+            owner_id=final_owner_id,
+            is_private=final_is_private,
+        )
+    except ValueError as err:
+        db.session.rollback()
+        return jsonify({"error": str(err)}), 400
 
     db.session.commit()
 
@@ -223,20 +248,19 @@ def get_place_reviews(place_id):
     per_page = min(per_page, 100)
 
     query = Review.query.filter(Review.place_id == place_id)
-    if not is_admin:
-        if current_user_id:
-            query = query.filter(
-                db.or_(Review.is_private == False, Review.user_id == current_user_id)
-            )
-        else:
-            query = query.filter(Review.is_private == False)
+    query = query.filter(
+        review_visibility_filter(current_user_id=current_user_id, is_admin=is_admin)
+    )
 
     pagination = query.order_by(
         Review.created_at.desc()
     ).paginate(page=page, per_page=per_page, error_out=False)
 
     return jsonify({
-        "reviews": [r.to_dict() for r in pagination.items],
+        "reviews": [
+            r.to_dict(current_user_id=current_user_id, is_admin=is_admin)
+            for r in pagination.items
+        ],
         "total": pagination.total,
         "page": pagination.page,
         "pages": pagination.pages,

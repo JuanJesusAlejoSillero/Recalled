@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.review import Review
 from app.models.place import Place
 from app.models.photo import ReviewPhoto
+from app.utils.visibility import review_visibility_filter
 
 stats_bp = Blueprint("stats", __name__)
 
@@ -72,16 +73,6 @@ def top_places():
     current_user_id = current_user.id if current_user else None
     is_admin = current_user.is_admin if current_user else False
 
-    review_filter = Review.is_private == False
-    place_filter = Place.is_private == False
-    if not is_admin and current_user_id:
-        review_filter = db.or_(
-            Review.is_private == False, Review.user_id == current_user_id
-        )
-        place_filter = db.or_(
-            Place.is_private == False, Place.created_by == current_user_id
-        )
-
     results = (
         db.session.query(
             Place,
@@ -89,7 +80,7 @@ def top_places():
             func.count(Review.id).label("review_count"),
         )
         .join(Review, Place.id == Review.place_id)
-        .filter(review_filter, place_filter)
+        .filter(review_visibility_filter(current_user=current_user))
         .group_by(Place.id)
         .having(func.count(Review.id) >= 1)
         .order_by(func.avg(Review.rating).desc())

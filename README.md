@@ -11,8 +11,8 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Places** - Create, search, filter by category, and sort by rating
 - **Place ownership** - Track place creators, admin can reassign ownership
 - **Reviews** - Write reviews with 1-5 star ratings, titles, comments, and visit dates
-- **Private reviews** - Mark reviews as private so only you can see them
-- **Privacy-aware defaults** - Reviews for private places are auto-marked as private, with confirmation dialogs for mismatched privacy settings
+- **Selective visibility** - Private places and reviews can be shared with specific users through per-item allowlists
+- **Privacy-aware defaults** - Reviews for private places are auto-marked as private, with confirmation dialogs for mismatched privacy settings and independent sharing controls
 - **Photos** - Upload up to 5 photos per review with automatic thumbnail generation
 - **Unsaved changes protection** - Navigation guards warn before losing unsaved work in review and place forms (in-app navigation, browser close, and back/forward)
 - **Admin panel** - User management and general statistics
@@ -112,6 +112,14 @@ All configuration is done through the `.env` file. See [.env.example](.env.examp
 
 The example defaults assume HTTPS and Redis-backed rate limiting. If you run the app without HTTPS, set `JWT_COOKIE_SECURE=false` and keep `JWT_COOKIE_SAMESITE=Lax` before starting the stack. If you do not run Redis, switch `RATELIMIT_STORAGE_URI` to `memory://` (or point it to another Redis instance).
 Set `PROXY_FIX_X_FOR=2` when Recalled sits behind an additional reverse proxy that forwards requests to the frontend container.
+
+## Privacy Model
+
+- **Public place**: visible to every authenticated user.
+- **Private place**: visible to its creator, admins, and any users explicitly selected in the place allowlist.
+- **Public review**: visible to everyone who can already access its place.
+- **Private review**: visible to its author, admins, and any users explicitly selected in the review allowlist, as long as they can also access the parent place.
+- **Photos**: inherit both place and review visibility and are served only through authenticated `/api/v1/media/...` endpoints.
 
 ## Project Structure
 

@@ -2,8 +2,9 @@
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import func
 
-from app import db
+from app import db, limiter
 from app.middleware.auth import admin_required, get_current_user
 from app.middleware.validators import validate_json
 from app.models.user import User
@@ -11,6 +12,47 @@ from app.schemas.user_schema import UserCreateSchema, UserUpdateSchema
 from app.utils.security import clear_auth_cookies, set_auth_cookies
 
 users_bp = Blueprint("users", __name__)
+
+
+@users_bp.route("/shareable", methods=["GET"])
+@jwt_required()
+@limiter.limit("60/minute")
+def list_shareable_users():
+    """List shareable users for admins and exact-match lookup for other users."""
+    current_user = get_current_user()
+    if not current_user:
+        return jsonify({"error": "Authentication required"}), 401
+
+    search = request.args.get("search", "").strip()
+    base_query = User.query.filter(User.id != current_user.id)
+
+    if current_user.is_admin:
+        users_query = base_query
+        if search:
+            users_query = users_query.filter(func.lower(User.username).contains(search.lower()))
+
+        users = users_query.order_by(User.username.asc()).all()
+
+        return jsonify({
+            "users": [{"id": user.id, "username": user.username} for user in users],
+            "total": len(users),
+        }), 200
+
+    if not search:
+        return jsonify({"users": [], "total": 0}), 200
+
+    users = (
+        base_query
+        .filter(func.lower(User.username) == search.lower())
+        .order_by(User.username.asc())
+        .limit(1)
+        .all()
+    )
+
+    return jsonify({
+        "users": [{"id": user.id, "username": user.username} for user in users],
+        "total": len(users),
+    }), 200
 
 
 @users_bp.route("", methods=["GET"])

@@ -1,10 +1,16 @@
 import { Link } from 'react-router-dom';
-import { FiMapPin, FiUser } from 'react-icons/fi';
+import { FiLock, FiMapPin, FiUser, FiUsers } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
 import { useLanguage } from '../../context/LanguageContext';
 
 function PlaceCard({ place }) {
   const { t } = useLanguage();
+  const visibilityMode = place.visibility_mode || (place.is_private ? 'private' : 'public');
+  const VisibilityIcon = visibilityMode === 'shared' ? FiUsers : FiLock;
+  const visibilityBadgeClass = visibilityMode === 'shared'
+    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+
   return (
     <Link
       to={`/places/${place.id}`}
@@ -26,11 +32,19 @@ function PlaceCard({ place }) {
             </p>
           )}
         </div>
-        {place.category && (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 capitalize">
-            {t(`categories.${place.category}`)}
-          </span>
-        )}
+        <div className="flex flex-col items-end gap-2">
+          {place.category && (
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 capitalize">
+              {t(`categories.${place.category}`)}
+            </span>
+          )}
+          {visibilityMode !== 'public' && (
+            <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${visibilityBadgeClass}`}>
+              <VisibilityIcon className="h-3 w-3" />
+              <span>{t(`visibility.badges.${visibilityMode}`)}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center justify-between mt-4">

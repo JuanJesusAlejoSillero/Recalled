@@ -5,6 +5,7 @@ import StarRating from '../common/StarRating';
 import ImageUploader from '../common/ImageUploader';
 import ConfirmDialog from '../common/ConfirmDialog';
 import LocationPickerMap from '../common/LocationPickerMap';
+import VisibilitySelector from '../common/VisibilitySelector';
 import { placesAPI } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { getThumbnailUrl } from '../../utils/helpers';
@@ -13,6 +14,12 @@ const CATEGORY_KEYS = [
   'restaurant', 'hotel', 'museum', 'park', 'beach',
   'monument', 'shopping', 'nightlife', 'cafe', 'bar', 'other',
 ];
+
+function selectedIdsSignature(userIds) {
+  return [...new Set((userIds || []).map((userId) => Number(userId)).filter(Number.isFinite))]
+    .sort((left, right) => left - right)
+    .join(',');
+}
 
 function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChange }) {
   const { t } = useLanguage();
@@ -29,8 +36,10 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
   const [newPlaceLatitude, setNewPlaceLatitude] = useState('');
   const [newPlaceLongitude, setNewPlaceLongitude] = useState('');
   const [newPlaceIsPrivate, setNewPlaceIsPrivate] = useState(false);
+  const [newPlaceVisibilityUserIds, setNewPlaceVisibilityUserIds] = useState([]);
   const [placeError, setPlaceError] = useState('');
   const [isPrivate, setIsPrivate] = useState(initialData?.is_private || false);
+  const [visibleUserIds, setVisibleUserIds] = useState(initialData?.visibility_user_ids || []);
   const [privacyConfirm, setPrivacyConfirm] = useState(null);
   const [geocodeResults, setGeocodeResults] = useState([]);
   const [geocoding, setGeocoding] = useState(false);
@@ -71,6 +80,8 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         newPlaceLatitude: '',
         newPlaceLongitude: '',
         newPlaceIsPrivate: false,
+        newPlaceVisibilityUserIds: [],
+        visibleUserIds: initialData?.visibility_user_ids || [],
         photosCount: 0,
         photosToDeleteCount: 0,
       };
@@ -95,6 +106,8 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
       String(newPlaceLatitude) !== String(snap.newPlaceLatitude) ||
       String(newPlaceLongitude) !== String(snap.newPlaceLongitude) ||
       newPlaceIsPrivate !== snap.newPlaceIsPrivate ||
+      selectedIdsSignature(newPlaceVisibilityUserIds) !== selectedIdsSignature(snap.newPlaceVisibilityUserIds) ||
+      selectedIdsSignature(visibleUserIds) !== selectedIdsSignature(snap.visibleUserIds) ||
       photos.length !== snap.photosCount ||
       photosToDelete.length !== snap.photosToDeleteCount;
     onDirtyChange(isDirty);
@@ -109,6 +122,8 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     newPlaceLatitude,
     newPlaceLongitude,
     newPlaceIsPrivate,
+    newPlaceVisibilityUserIds,
+    visibleUserIds,
     photos,
     photosToDelete,
     onDirtyChange,
@@ -173,10 +188,25 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         place_latitude: newPlaceLatitude ? parseFloat(newPlaceLatitude) : null,
         place_longitude: newPlaceLongitude ? parseFloat(newPlaceLongitude) : null,
         place_is_private: newPlaceIsPrivate,
+        place_visibility_user_ids: newPlaceIsPrivate ? newPlaceVisibilityUserIds : [],
       };
-      return { ...rest, rating, visit_date: data.visit_date || null, ...placeFields, is_private: isPrivate };
+      return {
+        ...rest,
+        rating,
+        visit_date: data.visit_date || null,
+        ...placeFields,
+        is_private: isPrivate,
+        visibility_user_ids: isPrivate ? visibleUserIds : [],
+      };
     }
-    return { ...data, rating, place_id: parseInt(data.place_id), visit_date: data.visit_date || null, is_private: isPrivate };
+    return {
+      ...data,
+      rating,
+      place_id: parseInt(data.place_id),
+      visit_date: data.visit_date || null,
+      is_private: isPrivate,
+      visibility_user_ids: isPrivate ? visibleUserIds : [],
+    };
   };
 
   const doSubmit = (payload) => {
@@ -437,6 +467,15 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
                 {t('placeForm.privatePlace')}
               </label>
             </div>
+
+            {newPlaceIsPrivate && (
+              <VisibilitySelector
+                selectedUserIds={newPlaceVisibilityUserIds}
+                onChange={setNewPlaceVisibilityUserIds}
+                title={t('placeForm.shareWithUsers')}
+                description={t('visibility.inlinePlaceDescription')}
+              />
+            )}
           </div>
         ) : (
           <select
@@ -494,6 +533,31 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         />
       </div>
 
+      <div className="space-y-3">
+        <div className="flex items-center space-x-3">
+          <input
+            type="checkbox"
+            id="review_is_private"
+            checked={isPrivate}
+            onChange={(event) => setIsPrivate(event.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
+          />
+          <label htmlFor="review_is_private" className="text-sm text-gray-700 dark:text-gray-300">
+            {t('reviewForm.private')}
+          </label>
+        </div>
+
+        {isPrivate && (
+          <VisibilitySelector
+            selectedUserIds={visibleUserIds}
+            knownUsers={initialData?.visibility_users || []}
+            onChange={setVisibleUserIds}
+            title={t('reviewForm.shareWithUsers')}
+            description={t('visibility.reviewDescription')}
+          />
+        )}
+      </div>
+
       {/* Photos */}
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.photos')}</label>
@@ -536,20 +600,6 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         )}
 
         <ImageUploader onFilesSelected={setPhotos} maxFiles={5 - existingPhotos.length} />
-      </div>
-
-      {/* Private toggle */}
-      <div className="flex items-center space-x-3">
-        <input
-          type="checkbox"
-          id="is_private"
-          checked={isPrivate}
-          onChange={(e) => setIsPrivate(e.target.checked)}
-          className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-gray-600 rounded"
-        />
-        <label htmlFor="is_private" className="text-sm text-gray-700 dark:text-gray-300">
-          {t('reviewForm.private')}
-        </label>
       </div>
 
       <button

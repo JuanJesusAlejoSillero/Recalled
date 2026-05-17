@@ -11,56 +11,26 @@ from app.middleware.auth import get_current_user
 from app.middleware.validators import validate_json
 from app.schemas.review_schema import ReviewCreateSchema, ReviewUpdateSchema
 from app.utils.file_handler import save_photo, delete_photo
+from app.utils.visibility import (
+    can_view_place,
+    can_view_review,
+    review_visibility_filter,
+    sync_visibility_users,
+)
 
 reviews_bp = Blueprint("reviews", __name__)
 MAX_REVIEW_PHOTOS = 5
 
 
-def _place_visible_to_user(place, current_user) -> bool:
-    """Return whether a place is visible to the current user."""
-    if not place:
-        return False
-    if current_user and current_user.is_admin:
-        return True
-    if not place.is_private:
-        return True
-    return bool(current_user and place.created_by == current_user.id)
-
-
-def _review_visible_to_user(review, current_user) -> bool:
-    """Return whether a review is visible to the current user."""
-    if not review or not review.place:
-        return False
-    if current_user and current_user.is_admin:
-        return True
-    if not _place_visible_to_user(review.place, current_user):
-        return False
-    if not review.is_private:
-        return True
-    return bool(current_user and review.user_id == current_user.id)
-
-
 def _visible_reviews_query(current_user):
     """Build a query that only returns reviews visible to the current user."""
-    query = Review.query.join(Place, Review.place_id == Place.id)
-
-    if current_user and current_user.is_admin:
-        return query
-
-    place_filters = [Place.is_private == False]
-    review_filters = [Review.is_private == False]
-
-    if current_user:
-        place_filters.append(Place.created_by == current_user.id)
-        review_filters.append(Review.user_id == current_user.id)
-
-    return query.filter(db.or_(*place_filters)).filter(db.or_(*review_filters))
+    return Review.query.filter(review_visibility_filter(current_user=current_user))
 
 
 def _get_accessible_place(place_id, current_user):
     """Return a place only when the current user is allowed to attach reviews to it."""
     place = db.session.get(Place, place_id)
-    if not place or not _place_visible_to_user(place, current_user):
+    if not place or not can_view_place(place, current_user):
         return None
     return place
 
@@ -104,16 +74,27 @@ def get_review(review_id):
     review = db.get_or_404(Review, review_id, description="Review not found")
 
     current_user = get_current_user()
-    if not _review_visible_to_user(review, current_user):
+    if not can_view_review(review, current_user):
         return jsonify({"error": "Review not found"}), 404
 
-    return jsonify(review.to_dict()), 200
+    return jsonify(review.to_dict(
+        current_user_id=current_user.id if current_user else None,
+        is_admin=current_user.is_admin if current_user else False,
+    )), 200
 
 
 def _extract_place_fields(validated_data):
     """Pop inline place_* fields from validated_data and return a dict for Place creation."""
     place_fields = {}
-    for suffix in ("name", "address", "category", "latitude", "longitude", "is_private"):
+    for suffix in (
+        "name",
+        "address",
+        "category",
+        "latitude",
+        "longitude",
+        "is_private",
+        "visibility_user_ids",
+    ):
         key = f"place_{suffix}"
         val = validated_data.pop(key, None)
         if val is not None:
@@ -123,8 +104,17 @@ def _extract_place_fields(validated_data):
 
 def _create_inline_place(place_fields, user_id):
     """Create a Place from inline fields and return its id."""
+    visibility_user_ids = place_fields.pop("visibility_user_ids", [])
     place = Place(created_by=user_id, **place_fields)
     db.session.add(place)
+
+    sync_visibility_users(
+        place,
+        requested_user_ids=visibility_user_ids,
+        owner_id=user_id,
+        is_private=place.is_private,
+    )
+
     db.session.flush()
     return place.id
 
@@ -145,6 +135,7 @@ def create_review(validated_data):
     user_id = current_user.id
 
     place_id = validated_data.pop("place_id", None)
+    visibility_user_ids = validated_data.pop("visibility_user_ids", [])
     place_fields = _extract_place_fields(validated_data)
     target_place = None
 
@@ -152,7 +143,11 @@ def create_review(validated_data):
         return jsonify({"error": "Provide place_id or place_name"}), 400
 
     if place_fields.get("name"):
-        place_id = _create_inline_place(place_fields, user_id)
+        try:
+            place_id = _create_inline_place(place_fields, user_id)
+        except ValueError as err:
+            db.session.rollback()
+            return jsonify({"error": str(err)}), 400
         target_place = db.session.get(Place, place_id)
     else:
         target_place = _get_accessible_place(place_id, current_user)
@@ -174,9 +169,21 @@ def create_review(validated_data):
     )
 
     db.session.add(review)
+
+    try:
+        sync_visibility_users(
+            review,
+            requested_user_ids=visibility_user_ids,
+            owner_id=user_id,
+            is_private=review_is_private,
+        )
+    except ValueError as err:
+        db.session.rollback()
+        return jsonify({"error": str(err)}), 400
+
     db.session.commit()
 
-    return jsonify(review.to_dict()), 201
+    return jsonify(review.to_dict(current_user_id=current_user.id, is_admin=current_user.is_admin)), 201
 
 
 @reviews_bp.route("/<int:review_id>", methods=["PUT"])
@@ -193,26 +200,48 @@ def update_review(review_id, validated_data):
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403
 
+    visibility_user_ids = validated_data.pop(
+        "visibility_user_ids",
+        [user.id for user in review.visible_users],
+    )
+
     # Handle new place creation inline
     target_place = review.place
     place_fields = _extract_place_fields(validated_data)
     if place_fields.get("name"):
-        validated_data["place_id"] = _create_inline_place(place_fields, current_user.id)
+        try:
+            validated_data["place_id"] = _create_inline_place(place_fields, current_user.id)
+        except ValueError as err:
+            db.session.rollback()
+            return jsonify({"error": str(err)}), 400
         target_place = db.session.get(Place, validated_data["place_id"])
     elif "place_id" in validated_data:
         target_place = _get_accessible_place(validated_data["place_id"], current_user)
         if not target_place:
             return jsonify({"error": "Place not found"}), 404
 
+    final_is_private = validated_data.get("is_private", review.is_private)
     if target_place and target_place.is_private:
         validated_data["is_private"] = True
+        final_is_private = True
 
     for key, value in validated_data.items():
         setattr(review, key, value)
 
+    try:
+        sync_visibility_users(
+            review,
+            requested_user_ids=visibility_user_ids,
+            owner_id=review.user_id,
+            is_private=final_is_private,
+        )
+    except ValueError as err:
+        db.session.rollback()
+        return jsonify({"error": str(err)}), 400
+
     db.session.commit()
 
-    return jsonify(review.to_dict()), 200
+    return jsonify(review.to_dict(current_user_id=current_user.id, is_admin=current_user.is_admin)), 200
 
 
 @reviews_bp.route("/<int:review_id>", methods=["DELETE"])

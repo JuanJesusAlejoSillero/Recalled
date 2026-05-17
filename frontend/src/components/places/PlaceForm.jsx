@@ -5,6 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { usersAPI } from '../../services/api';
 import { useNavigationPrompt } from '../../hooks/useNavigationPrompt';
 import LocationPickerMap from '../common/LocationPickerMap';
+import VisibilitySelector from '../common/VisibilitySelector';
 import { FiSearch } from 'react-icons/fi';
 
 const CATEGORY_KEYS = [
@@ -12,10 +13,17 @@ const CATEGORY_KEYS = [
   'monument', 'shopping', 'nightlife', 'cafe', 'bar', 'other',
 ];
 
+function selectedIdsSignature(userIds) {
+  return [...new Set((userIds || []).map((userId) => Number(userId)).filter(Number.isFinite))]
+    .sort((left, right) => left - right)
+    .join(',');
+}
+
 function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, onDirtyChange }) {
   const { t } = useLanguage();
   const { user } = useAuth();
   const [isPrivate, setIsPrivate] = useState(initialData?.is_private || false);
+  const [visibleUserIds, setVisibleUserIds] = useState(initialData?.visibility_user_ids || []);
   const [owner, setOwner] = useState(initialData?.created_by || '');
   const [users, setUsers] = useState([]);
   const isSubmitting = useRef(false);
@@ -37,6 +45,7 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
     latitude: initialData?.latitude ?? '',
     longitude: initialData?.longitude ?? '',
     isPrivate: initialData?.is_private || false,
+    visibleUserIds: initialData?.visibility_user_ids || [],
     owner: initialData?.created_by || '',
   });
 
@@ -48,6 +57,7 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
     String(watchedFields.latitude) !== String(initialSnapshot.current.latitude) ||
     String(watchedFields.longitude) !== String(initialSnapshot.current.longitude) ||
     isPrivate !== initialSnapshot.current.isPrivate ||
+    selectedIdsSignature(visibleUserIds) !== selectedIdsSignature(initialSnapshot.current.visibleUserIds) ||
     String(owner) !== String(initialSnapshot.current.owner);
 
   useNavigationPrompt(isDirty && !isSubmitting.current, t('reviewForm.unsavedChanges'));
@@ -123,6 +133,7 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
       longitude: parseCoordinateValue(data.longitude),
       category: data.category || null,
       is_private: isPrivate,
+      visibility_user_ids: isPrivate ? visibleUserIds : [],
     };
     if (user?.is_admin && initialData && owner) {
       payload.created_by = parseInt(owner);
@@ -281,6 +292,16 @@ function PlaceForm({ onSubmit, initialData = null, loading = false, onCancel, on
           {t('placeForm.privatePlace')}
         </label>
       </div>
+
+      {isPrivate && (
+        <VisibilitySelector
+          selectedUserIds={visibleUserIds}
+          knownUsers={initialData?.visibility_users || []}
+          onChange={setVisibleUserIds}
+          title={t('placeForm.shareWithUsers')}
+          description={t('visibility.placeDescription')}
+        />
+      )}
 
       {user?.is_admin && initialData && users.length > 0 && (
         <div>

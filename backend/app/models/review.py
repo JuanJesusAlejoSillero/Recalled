@@ -5,6 +5,23 @@ from datetime import datetime, timezone
 from app import db
 
 
+review_visible_users = db.Table(
+    "review_visible_users",
+    db.Column(
+        "review_id",
+        db.Integer,
+        db.ForeignKey("reviews.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    db.Column(
+        "user_id",
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
 class Review(db.Model):
     """Place review model."""
 
@@ -38,13 +55,24 @@ class Review(db.Model):
         "ReviewPhoto", backref="review", lazy="dynamic",
         cascade="all, delete-orphan",
     )
+    visible_users = db.relationship(
+        "User",
+        secondary=review_visible_users,
+        lazy="selectin",
+        passive_deletes=True,
+        order_by="User.username.asc()",
+    )
 
     __table_args__ = (
         db.CheckConstraint("rating >= 1 AND rating <= 5", name="ck_rating_range"),
     )
 
-    def to_dict(self, include_photos: bool = True) -> dict:
+    def to_dict(self, include_photos: bool = True,
+                current_user_id: int | None = None,
+                is_admin: bool = False) -> dict:
         """Serialize review to dictionary."""
+        from app.utils.visibility import build_visibility_metadata
+
         data = {
             "id": self.id,
             "user_id": self.user_id,
@@ -59,6 +87,15 @@ class Review(db.Model):
             "author": self.author.username if self.author else None,
             "place_name": self.place.name if self.place else None,
         }
+        data.update(
+            build_visibility_metadata(
+                self.visible_users,
+                self.is_private,
+                owner_id=self.user_id,
+                current_user_id=current_user_id,
+                is_admin=is_admin,
+            )
+        )
         if include_photos:
             data["photos"] = [p.to_dict() for p in self.photos]
         return data

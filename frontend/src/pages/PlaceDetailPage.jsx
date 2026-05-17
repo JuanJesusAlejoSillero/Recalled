@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { FiMapPin, FiPlus, FiEdit2, FiTrash2, FiUser } from 'react-icons/fi';
+import { FiLock, FiMapPin, FiPlus, FiEdit2, FiTrash2, FiUser, FiUsers } from 'react-icons/fi';
 import { placesAPI, reviewsAPI } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 import StarRating from '../components/common/StarRating';
@@ -105,6 +105,12 @@ function PlaceDetailPage() {
     return <div className="text-center py-12 text-gray-500 dark:text-gray-400">{t('places.notFound')}</div>;
   }
 
+  const visibilityMode = place.visibility_mode || (place.is_private ? 'private' : 'public');
+  const VisibilityIcon = visibilityMode === 'shared' ? FiUsers : FiLock;
+  const visibilityBadgeClass = visibilityMode === 'shared'
+    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300';
+
   return (
     <div className="space-y-6">
       {/* Place Header */}
@@ -148,6 +154,12 @@ function PlaceDetailPage() {
               {place.category && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 capitalize">
                   {t(`categories.${place.category}`)}
+                </span>
+              )}
+              {visibilityMode !== 'public' && (
+                <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${visibilityBadgeClass}`}>
+                  <VisibilityIcon className="h-4 w-4" />
+                  <span>{t(`visibility.badges.${visibilityMode}`)}</span>
                 </span>
               )}
               <Link

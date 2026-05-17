@@ -13,6 +13,7 @@ from flask_jwt_extended import jwt_required
 from app import db
 from app.middleware.auth import get_current_user
 from app.models.photo import ReviewPhoto
+from app.utils.visibility import can_view_review
 
 media_bp = Blueprint("media", __name__)
 
@@ -20,25 +21,7 @@ media_bp = Blueprint("media", __name__)
 def _can_view_photo(photo, current_user) -> bool:
     """Return True when the current user may see this photo's review."""
     review = photo.review
-    if not review or not review.place:
-        return False
-
-    if current_user and current_user.is_admin:
-        return True
-
-    place = review.place
-
-    # Private place: only creator can see
-    if place.is_private:
-        if not current_user or place.created_by != current_user.id:
-            return False
-
-    # Private review: only author can see
-    if review.is_private:
-        if not current_user or review.user_id != current_user.id:
-            return False
-
-    return True
+    return can_view_review(review, current_user)
 
 
 @media_bp.route("/photos/<filename>")
