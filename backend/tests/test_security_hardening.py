@@ -1,4 +1,6 @@
 import io
+import time
+from datetime import timedelta
 
 
 _PNG_1X1 = (
@@ -216,6 +218,27 @@ def test_password_change_invalidates_existing_tokens(app, client):
     assert me_response.status_code == 401
     assert refresh_response.status_code == 401
     assert relogin_response.status_code == 200
+
+
+def test_expired_access_token_keeps_refresh_cookie_available(app, client):
+    _create_user(app, "alice")
+    app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(seconds=1)
+
+    _login_session(client, "alice")
+    assert _get_cookie(client, "refresh_token_cookie") is not None
+
+    time.sleep(1.1)
+
+    me_response = client.get("/api/v1/auth/me")
+    refresh_cookie = _get_cookie(client, "refresh_token_cookie")
+    refresh_response = client.post(
+        "/api/v1/auth/refresh",
+        headers=_csrf_headers(client, refresh=True),
+    )
+
+    assert me_response.status_code == 401
+    assert refresh_cookie is not None
+    assert refresh_response.status_code == 200
 
 
 def test_login_is_rate_limited(app, client):

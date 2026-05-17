@@ -9,6 +9,7 @@ from flask_jwt_extended import (
     create_refresh_token,
     set_access_cookies,
     set_refresh_cookies,
+    unset_access_cookies,
     unset_jwt_cookies,
 )
 
@@ -57,6 +58,12 @@ def set_auth_cookies(response, user, include_refresh: bool = True):
 def clear_auth_cookies(response):
     """Clear any JWT and CSRF cookies from the response."""
     unset_jwt_cookies(response)
+    return response
+
+
+def clear_access_cookies(response):
+    """Clear only access JWT and CSRF cookies from the response."""
+    unset_access_cookies(response)
     return response
 
 

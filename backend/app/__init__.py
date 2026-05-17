@@ -1,6 +1,6 @@
 """Recalled Application - Flask Factory."""
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
 from flask_limiter import Limiter
@@ -9,7 +9,7 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.middleware.proxy_fix import ProxyFix
 
-from app.utils.security import clear_auth_cookies
+from app.utils.security import clear_access_cookies, clear_auth_cookies
 
 db = SQLAlchemy()
 jwt = JWTManager()
@@ -86,7 +86,9 @@ def create_app():
     def auth_error(message: str, status_code: int):
         response = jsonify({"error": message})
         response.status_code = status_code
-        return clear_auth_cookies(response)
+        if request.path == "/api/v1/auth/refresh":
+            return clear_auth_cookies(response)
+        return clear_access_cookies(response)
 
     # JWT error handlers
     @jwt.expired_token_loader
