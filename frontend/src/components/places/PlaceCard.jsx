@@ -17,12 +17,12 @@ function PlaceCard({ place }) {
       className="block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-shadow"
     >
       <div className="flex items-start justify-between">
-        <div>
+        <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{place.name}</h3>
           {place.address && (
-            <p className="flex items-center space-x-1 text-sm text-gray-500 dark:text-gray-400 mt-1">
-              <FiMapPin className="w-3.5 h-3.5" />
-              <span>{place.address}</span>
+            <p className="mt-1 flex items-start gap-1 text-sm text-gray-500 dark:text-gray-400">
+              <FiMapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 break-words">{place.address}</span>
             </p>
           )}
           {place.creator_username && (
