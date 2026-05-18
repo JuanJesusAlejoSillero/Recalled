@@ -4,7 +4,7 @@ import { reviewsAPI } from '../services/api';
 import ReviewForm from '../components/reviews/ReviewForm';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigationPrompt } from '../hooks/useNavigationPrompt';
-import { getEnabledContentModule } from '../config/contentModules';
+import { getEnabledReviewableContentModule, getEnabledReviewableContentModules } from '../config/contentModules';
 
 function CreateReviewPage() {
   const { id } = useParams(); // for edit mode
@@ -16,6 +16,7 @@ function CreateReviewPage() {
   const [pageLoading, setPageLoading] = useState(!!id);
   const [isDirty, setIsDirty] = useState(false);
   const isSubmitting = useRef(false);
+  const enabledReviewableModules = getEnabledReviewableContentModules();
 
   // Pre-select place from URL param
   const preselectedPlace = searchParams.get('place');
@@ -98,7 +99,15 @@ function CreateReviewPage() {
     );
   }
 
-  const initialContentType = getEnabledContentModule(initialData?.place_content_type || requestedContentType).contentType;
+  if (enabledReviewableModules.length === 0) {
+    return (
+      <div className="max-w-2xl mx-auto rounded-lg border border-gray-200 bg-white p-6 text-sm text-gray-600 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+        {t('reviewPage.unavailable')}
+      </div>
+    );
+  }
+
+  const initialContentType = getEnabledReviewableContentModule(initialData?.place_content_type || requestedContentType).contentType;
   const formInitial = id
     ? initialData
     : {

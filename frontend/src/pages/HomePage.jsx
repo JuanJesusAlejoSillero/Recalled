@@ -6,7 +6,7 @@ import { reviewsAPI, statsAPI } from '../services/api';
 import ReviewList from '../components/reviews/ReviewList';
 import PlaceList from '../components/places/PlaceList';
 import { useLanguage } from '../context/LanguageContext';
-import { getEnabledContentModules } from '../config/contentModules';
+import { getEnabledContentModules, getEnabledReviewableContentModules } from '../config/contentModules';
 
 function HomePage() {
   const { user } = useAuth();
@@ -16,6 +16,7 @@ function HomePage() {
   const [userStats, setUserStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const hasExtraModules = getEnabledContentModules().some((module) => module.contentType !== 'place');
+  const hasReviewableModules = getEnabledReviewableContentModules().length > 0;
 
   useEffect(() => {
     const loadData = async () => {
@@ -54,13 +55,15 @@ function HomePage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('home.greeting', { username: user?.username })}</h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">{t('home.subtitle')}</p>
           </div>
-          <Link
-            to="/reviews/new"
-            className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
-          >
-            <FiPlus className="w-4 h-4" />
-            <span>{t('common.newReview')}</span>
-          </Link>
+          {hasReviewableModules && (
+            <Link
+              to="/reviews/new"
+              className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700"
+            >
+              <FiPlus className="w-4 h-4" />
+              <span>{t('common.newReview')}</span>
+            </Link>
+          )}
         </div>
 
         {userStats && (

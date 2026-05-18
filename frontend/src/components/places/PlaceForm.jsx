@@ -200,18 +200,31 @@ function PlaceForm({ onSubmit, initialData = null, contentType = 'place', loadin
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   {t(`contentDetails.fields.${field.key}`)}
                 </label>
-                <input
-                  type={field.type === 'number' ? 'number' : 'text'}
-                  step={field.type === 'number' ? '1' : undefined}
-                  inputMode={field.type === 'number' ? 'numeric' : undefined}
-                  value={detailsState[field.key] ?? ''}
-                  onChange={(event) => setDetailsState((current) => ({
-                    ...current,
-                    [field.key]: event.target.value,
-                  }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder={t(`contentDetails.placeholders.${field.key}`)}
-                />
+                {field.type === 'textarea' ? (
+                  <textarea
+                    rows={4}
+                    value={detailsState[field.key] ?? ''}
+                    onChange={(event) => setDetailsState((current) => ({
+                      ...current,
+                      [field.key]: event.target.value,
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder={t(`contentDetails.placeholders.${field.key}`)}
+                  />
+                ) : (
+                  <input
+                    type={field.type === 'number' ? 'number' : 'text'}
+                    step={field.type === 'number' ? '1' : undefined}
+                    inputMode={field.type === 'number' ? 'numeric' : undefined}
+                    value={detailsState[field.key] ?? ''}
+                    onChange={(event) => setDetailsState((current) => ({
+                      ...current,
+                      [field.key]: event.target.value,
+                    }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder={t(`contentDetails.placeholders.${field.key}`)}
+                  />
+                )}
               </div>
             ))}
           </div>

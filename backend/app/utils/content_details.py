@@ -41,6 +41,7 @@ CONTENT_DETAILS_SPECS = {
         "death_year": {"type": "integer", "min": 1, "max": 2100},
         "nationality": {"type": "text", "max_length": 80},
         "known_for": {"type": "text", "max_length": 200},
+        "notes": {"type": "text", "max_length": 2000},
     },
 }
 

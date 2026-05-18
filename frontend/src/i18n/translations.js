@@ -175,12 +175,12 @@ const translations = {
       },
       person: {
         title: 'Personas',
-        newItem: 'Nueva persona',
-        searchPlaceholder: 'Buscar personas...',
-        empty: 'No hay personas registradas.',
+        newItem: 'Nueva ficha',
+        searchPlaceholder: 'Buscar personas o notas...',
+        empty: 'No hay fichas de personas registradas.',
         nameLabel: 'Nombre de la persona',
         namePlaceholder: 'Ej: Hayao Miyazaki',
-        create: 'Crear Persona',
+        create: 'Guardar Ficha',
       },
     },
 
@@ -207,6 +207,7 @@ const translations = {
         death_year: 'Año de fallecimiento',
         nationality: 'Nacionalidad',
         known_for: 'Conocido/a por',
+        notes: 'Notas relevantes',
       },
       placeholders: {
         director: 'Ej: Ridley Scott',
@@ -229,6 +230,7 @@ const translations = {
         death_year: 'Ej: 2016',
         nationality: 'Ej: Japonesa',
         known_for: 'Ej: Director de El viaje de Chihiro',
+        notes: 'Ej: Contexto, relación, recordatorios o información relevante',
       },
     },
 
@@ -245,6 +247,7 @@ const translations = {
       newTitle: 'Nueva Review',
       errorSave: 'Error al guardar review',
       somePhotosFailed: 'La review se ha guardado, pero {count} de {total} fotos no se pudieron subir ({names}). Puedes editarla para intentarlo de nuevo.',
+      unavailable: 'No hay apartados con reviews habilitados en la configuración actual.',
     },
 
     // Review form
@@ -649,12 +652,12 @@ const translations = {
       },
       person: {
         title: 'People',
-        newItem: 'New Person',
-        searchPlaceholder: 'Search people...',
-        empty: 'No people registered.',
+        newItem: 'New Profile',
+        searchPlaceholder: 'Search people or notes...',
+        empty: 'No people profiles registered.',
         nameLabel: 'Person name',
         namePlaceholder: 'E.g. Hayao Miyazaki',
-        create: 'Create Person',
+        create: 'Save Profile',
       },
     },
 
@@ -681,6 +684,7 @@ const translations = {
         death_year: 'Death year',
         nationality: 'Nationality',
         known_for: 'Known for',
+        notes: 'Relevant notes',
       },
       placeholders: {
         director: 'E.g. Ridley Scott',
@@ -703,6 +707,7 @@ const translations = {
         death_year: 'E.g. 2016',
         nationality: 'E.g. Japanese',
         known_for: 'E.g. Director of Spirited Away',
+        notes: 'E.g. Context, relationship, reminders, or relevant background',
       },
     },
 
@@ -718,6 +723,7 @@ const translations = {
       newTitle: 'New Review',
       errorSave: 'Error saving review',
       somePhotosFailed: 'The review was saved, but {count} of {total} photos could not be uploaded ({names}). You can edit it to try again.',
+      unavailable: 'There are no reviewable sections enabled in the current configuration.',
     },
 
     reviewForm: {

@@ -214,6 +214,44 @@ def test_content_details_are_persisted_and_serialized_for_non_place_modules(app,
     assert update_response.get_json()["details"]["country"] == "USA"
 
 
+def test_person_notes_are_persisted_and_person_detail_hides_reviews(app, client):
+    _create_user(app, "alice")
+    _login_session(client, "alice")
+
+    person_details = {
+        "occupation": "Director",
+        "birth_year": 1941,
+        "nationality": "Japanese",
+        "known_for": "Spirited Away",
+        "notes": "Reference contact with contextual notes and no rating semantics.",
+    }
+
+    create_response = client.post(
+        "/api/v1/places",
+        json={
+            "name": "Hayao Miyazaki",
+            "content_type": "person",
+            "details": person_details,
+        },
+        headers=_csrf_headers(client),
+    )
+
+    assert create_response.status_code == 201
+    created = create_response.get_json()
+    assert created["details"] == person_details
+    assert created["avg_rating"] is None
+    assert created["review_count"] == 0
+
+    detail_response = client.get(f"/api/v1/places/{created['id']}")
+
+    assert detail_response.status_code == 200
+    detail = detail_response.get_json()
+    assert detail["details"]["notes"] == person_details["notes"]
+    assert detail["avg_rating"] is None
+    assert detail["review_count"] == 0
+    assert detail["reviews"] == []
+
+
 def test_invalid_content_details_are_rejected(app, client):
     _create_user(app, "alice")
     _login_session(client, "alice")
@@ -252,6 +290,54 @@ def test_reviews_from_disabled_module_are_hidden(app, client):
     assert list_response.get_json()["reviews"] == []
     assert detail_response.status_code == 404
     assert detail_response.get_json()["error"] == "Content module not enabled"
+
+
+def test_person_reviews_are_rejected_and_hidden_from_review_and_stats_routes(app, client):
+    alice_id = _create_user(app, "alice")
+    person_id = _create_place(
+        app,
+        "Hayao Miyazaki",
+        created_by=alice_id,
+        content_type="person",
+        details={"notes": "Reference-only profile"},
+    )
+    review_id = _create_review(app, alice_id, person_id, title="Should be hidden")
+
+    _login_session(client, "alice")
+
+    create_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_id": person_id,
+            "rating": 5,
+            "title": "Not allowed",
+        },
+        headers=_csrf_headers(client),
+    )
+    inline_response = client.post(
+        "/api/v1/reviews",
+        json={
+            "place_name": "Jane Doe",
+            "place_content_type": "person",
+            "rating": 4,
+            "title": "Still not allowed",
+        },
+        headers=_csrf_headers(client),
+    )
+    list_response = client.get("/api/v1/reviews")
+    detail_response = client.get(f"/api/v1/reviews/{review_id}")
+    stats_response = client.get("/api/v1/stats/places", query_string={"content_type": "person"})
+
+    assert create_response.status_code == 400
+    assert create_response.get_json()["error"] == "Reviews are not available for this content type"
+    assert inline_response.status_code == 400
+    assert inline_response.get_json()["error"] == "Reviews are not available for this content type"
+    assert list_response.status_code == 200
+    assert list_response.get_json()["reviews"] == []
+    assert detail_response.status_code == 404
+    assert detail_response.get_json()["error"] == "Reviews are not available for this content type"
+    assert stats_response.status_code == 400
+    assert stats_response.get_json()["error"] == "Reviews are not available for this content type"
 
 
 def test_top_content_stats_can_be_filtered_by_content_type(app, client):

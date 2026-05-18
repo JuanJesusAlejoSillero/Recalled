@@ -9,6 +9,7 @@ CONTENT_TYPES = (
     "videogame",
     "person",
 )
+NON_REVIEWABLE_CONTENT_TYPES = ("person",)
 
 CONTENT_TYPE_ALIASES = {
     "places": DEFAULT_CONTENT_TYPE,
@@ -49,7 +50,28 @@ def enabled_content_types(config):
     )
 
 
+def content_type_supports_reviews(content_type):
+    """Return whether the content type is meant to use the review flow."""
+    normalized = validate_content_type(content_type)
+    return normalized not in NON_REVIEWABLE_CONTENT_TYPES
+
+
+def reviewable_content_types(config):
+    """Return enabled content types that support reviews."""
+    return tuple(
+        content_type
+        for content_type in enabled_content_types(config)
+        if content_type_supports_reviews(content_type)
+    )
+
+
 def is_content_type_enabled(config, content_type):
     """Check whether a normalized content type is enabled."""
     normalized = validate_content_type(content_type)
     return normalized in enabled_content_types(config)
+
+
+def is_content_type_reviewable(config, content_type):
+    """Check whether a content type is enabled and reviewable."""
+    normalized = validate_content_type(content_type)
+    return normalized in reviewable_content_types(config)

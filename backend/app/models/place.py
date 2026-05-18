@@ -101,21 +101,29 @@ class Place(db.Model):
         """
         from sqlalchemy import func
         from app.models.review import Review
+        from app.utils.content_types import content_type_supports_reviews
 
         from app.utils.visibility import build_visibility_metadata
 
-        filters = self._review_visibility_filters(current_user_id, is_admin)
+        supports_reviews = content_type_supports_reviews(self.content_type)
 
-        avg_result = (
-            db.session.query(func.avg(Review.rating))
-            .filter(*filters)
-            .scalar()
-        )
-        visible_count = (
-            db.session.query(func.count(Review.id))
-            .filter(*filters)
-            .scalar()
-        )
+        if supports_reviews:
+            filters = self._review_visibility_filters(current_user_id, is_admin)
+
+            avg_result = (
+                db.session.query(func.avg(Review.rating))
+                .filter(*filters)
+                .scalar()
+            )
+            visible_count = (
+                db.session.query(func.count(Review.id))
+                .filter(*filters)
+                .scalar()
+            )
+        else:
+            filters = []
+            avg_result = None
+            visible_count = 0
 
         data = {
             "id": self.id,
@@ -147,7 +155,7 @@ class Place(db.Model):
                 Review.query.filter(*filters)
                 .order_by(Review.created_at.desc())
                 .all()
-            )
+            ) if supports_reviews else []
             data["reviews"] = [
                 r.to_dict(current_user_id=current_user_id, is_admin=is_admin)
                 for r in visible

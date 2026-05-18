@@ -14,7 +14,7 @@ import {
   getThumbnailUrl,
   parseDateInputValue,
 } from '../../utils/helpers';
-import { getEnabledContentModule, getEnabledContentModules } from '../../config/contentModules';
+import { getEnabledReviewableContentModule, getEnabledReviewableContentModules } from '../../config/contentModules';
 import {
   buildContentDetailsPayload,
   contentDetailsStateSignature,
@@ -56,10 +56,10 @@ function ReviewForm({
   onDirtyChange,
 }) {
   const { t, language } = useLanguage();
-  const initialContentType = getEnabledContentModule(initialData?.place_content_type || contentType).contentType;
+  const initialContentType = getEnabledReviewableContentModule(initialData?.place_content_type || contentType).contentType;
   const [selectedContentType, setSelectedContentType] = useState(initialContentType);
-  const module = getEnabledContentModule(selectedContentType);
-  const enabledModules = getEnabledContentModules();
+  const module = getEnabledReviewableContentModule(selectedContentType);
+  const enabledModules = getEnabledReviewableContentModules();
   const supportsLocation = module.hasLocation;
   const supportsCategory = module.hasCategory;
   const detailFields = module.detailFields || [];
@@ -580,18 +580,31 @@ function ReviewForm({
                       <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
                         {t(`contentDetails.fields.${field.key}`)}
                       </label>
-                      <input
-                        type={field.type === 'number' ? 'number' : 'text'}
-                        step={field.type === 'number' ? '1' : undefined}
-                        inputMode={field.type === 'number' ? 'numeric' : undefined}
-                        value={newPlaceDetails[field.key] ?? ''}
-                        onChange={(event) => setNewPlaceDetails((current) => ({
-                          ...current,
-                          [field.key]: event.target.value,
-                        }))}
-                        className={inputClass}
-                        placeholder={t(`contentDetails.placeholders.${field.key}`)}
-                      />
+                      {field.type === 'textarea' ? (
+                        <textarea
+                          rows={4}
+                          value={newPlaceDetails[field.key] ?? ''}
+                          onChange={(event) => setNewPlaceDetails((current) => ({
+                            ...current,
+                            [field.key]: event.target.value,
+                          }))}
+                          className={inputClass}
+                          placeholder={t(`contentDetails.placeholders.${field.key}`)}
+                        />
+                      ) : (
+                        <input
+                          type={field.type === 'number' ? 'number' : 'text'}
+                          step={field.type === 'number' ? '1' : undefined}
+                          inputMode={field.type === 'number' ? 'numeric' : undefined}
+                          value={newPlaceDetails[field.key] ?? ''}
+                          onChange={(event) => setNewPlaceDetails((current) => ({
+                            ...current,
+                            [field.key]: event.target.value,
+                          }))}
+                          className={inputClass}
+                          placeholder={t(`contentDetails.placeholders.${field.key}`)}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>

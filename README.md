@@ -9,7 +9,7 @@ A self-hosted web application to keep track of places and other reviewable items
 - **Authentication** - JWT-based login with httpOnly cookie sessions and CSRF protection
 - **Two-factor authentication (2FA)** - TOTP-based with QR code and manual secret key
 - **Places** - Create, search, filter by category, and sort by rating
-- **Content modules** - Review movies, series, books, videogames, and people using the same privacy-aware workflow as places
+- **Content modules** - Review movies, series, books, and videogames, and keep note-based profiles for people in the same privacy-aware workspace
 - **Place ownership** - Track place creators, admin can reassign ownership
 - **Reviews** - Write reviews with 1-5 star ratings, titles, comments, and visit dates
 - **Selective visibility** - Private places and reviews can be shared with specific users through per-item allowlists
@@ -20,6 +20,7 @@ A self-hosted web application to keep track of places and other reviewable items
 - **Personal dashboard** - Your stats, recent reviews, and top-rated content across enabled modules
 - **Settings** - Change username, password, enable/disable 2FA, and delete account
 - **Version badge** - Displays app version in navbar (baked at Docker build time)
+- **People notes** - Store relevant information and free-form notes about people
 - **World map** - Optional interactive map showing all your visited places (configurable via `ENABLE_MAP` and shown only when `ENABLE_PLACES=true`), with address geocoding via Nominatim so you don't need to enter coordinates manually
 - **Module toggles** - Enable or disable places, movies, series, books, videogames, and people independently through Compose/env flags
 - **Dark mode** - Toggle between light and dark themes
@@ -129,7 +130,7 @@ Set `PROXY_FIX_X_FOR=2` when Recalled sits behind an additional reverse proxy th
 - **Public review**: visible to everyone who can already access its parent item.
 - **Private review**: visible to its author, admins, and any users explicitly selected in the review allowlist, as long as they can also access the parent item. When a private review is created for a private item without an explicit review allowlist, it inherits the item allowlist by default. If a review uses its own explicit allowlist on a private item, that list must remain a subset of the parent item allowlist.
 - **Photos**: inherit both place and review visibility and are served only through authenticated `/api/v1/media/...` endpoints.
-- Recalled stores all reviewable entities behind the existing `/api/v1/places` resource and differentiates them with a `content_type` field (`place`, `movie`, `series`, `book`, `videogame`, `person`).
+- Recalled stores all content entities behind the existing `/api/v1/places` resource and differentiates them with a `content_type` field (`place`, `movie`, `series`, `book`, `videogame`, `person`). The `person` type is note-oriented and does not participate in the review/rating flow.
 
 ## Project Structure
 

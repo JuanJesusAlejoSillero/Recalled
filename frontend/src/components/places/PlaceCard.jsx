@@ -2,13 +2,17 @@ import { Link } from 'react-router-dom';
 import { FiLock, FiMapPin, FiUser, FiUsers } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
 import { useLanguage } from '../../context/LanguageContext';
-import { getContentDetailPath, getContentModule, isPlaceContentType } from '../../config/contentModules';
+import { getContentDetailPath, getContentModule, isPlaceContentType, supportsContentModuleReviews } from '../../config/contentModules';
+import { truncate } from '../../utils/helpers';
+import { getVisibleContentDetails } from '../../utils/contentDetails';
 
 function PlaceCard({ place }) {
   const { t } = useLanguage();
   const module = getContentModule(place.content_type);
   const ModuleIcon = module.icon;
   const isPlace = isPlaceContentType(place.content_type);
+  const supportsReviews = supportsContentModuleReviews(place.content_type);
+  const visibleDetails = getVisibleContentDetails(module, place.details).slice(0, 2);
   const visibilityMode = place.visibility_mode || (place.is_private ? 'private' : 'public');
   const VisibilityIcon = visibilityMode === 'shared' ? FiUsers : FiLock;
   const visibilityBadgeClass = visibilityMode === 'shared'
@@ -57,21 +61,34 @@ function PlaceCard({ place }) {
         </div>
       </div>
 
-      <div className="flex items-center justify-between mt-4">
-        <div className="flex items-center space-x-2">
-          {place.avg_rating ? (
-            <>
-              <StarRating rating={Math.round(place.avg_rating)} readonly size="sm" />
-              <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">{place.avg_rating}</span>
-            </>
-          ) : (
-            <span className="text-sm text-gray-400 dark:text-gray-500">{t('places.noRatings')}</span>
-          )}
+      {supportsReviews ? (
+        <div className="flex items-center justify-between mt-4">
+          <div className="flex items-center space-x-2">
+            {place.avg_rating ? (
+              <>
+                <StarRating rating={Math.round(place.avg_rating)} readonly size="sm" />
+                <span className="text-sm text-gray-600 dark:text-gray-400 font-medium">{place.avg_rating}</span>
+              </>
+            ) : (
+              <span className="text-sm text-gray-400 dark:text-gray-500">{t('places.noRatings')}</span>
+            )}
+          </div>
+          <span className="text-xs text-gray-400 dark:text-gray-500">
+            {place.review_count} {place.review_count === 1 ? t('places.review') : t('places.reviews')}
+          </span>
         </div>
-        <span className="text-xs text-gray-400 dark:text-gray-500">
-          {place.review_count} {place.review_count === 1 ? t('places.review') : t('places.reviews')}
-        </span>
-      </div>
+      ) : visibleDetails.length > 0 ? (
+        <dl className="mt-4 space-y-2 border-t border-gray-100 pt-4 text-sm dark:border-gray-700">
+          {visibleDetails.map((detail) => (
+            <div key={detail.key}>
+              <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                {t(detail.labelKey)}
+              </dt>
+              <dd className="mt-0.5 text-gray-700 dark:text-gray-300">{truncate(detail.value, detail.fullWidth ? 140 : 80)}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </Link>
   );
 }

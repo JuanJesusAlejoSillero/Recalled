@@ -10,7 +10,7 @@ from app.models.user import User
 from app.models.review import Review
 from app.models.place import Place
 from app.models.photo import ReviewPhoto
-from app.utils.content_types import enabled_content_types, is_content_type_enabled, validate_content_type
+from app.utils.content_types import content_type_supports_reviews, is_content_type_enabled, reviewable_content_types, validate_content_type
 from app.utils.visibility import review_visibility_filter
 
 stats_bp = Blueprint("stats", __name__)
@@ -27,7 +27,7 @@ def user_stats(user_id):
         return jsonify({"error": "Permission denied"}), 403
 
     user = db.get_or_404(User, user_id, description="User not found")
-    enabled_types = enabled_content_types(current_app.config)
+    enabled_types = reviewable_content_types(current_app.config)
 
     total_reviews = (
         Review.query.join(Place, Review.place_id == Place.id)
@@ -83,7 +83,7 @@ def top_places():
     current_user = get_current_user()
     current_user_id = current_user.id if current_user else None
     is_admin = current_user.is_admin if current_user else False
-    enabled_types = enabled_content_types(current_app.config)
+    enabled_types = reviewable_content_types(current_app.config)
     requested_content_type = request.args.get("content_type")
 
     if requested_content_type is not None:
@@ -97,6 +97,9 @@ def top_places():
 
         if not is_content_type_enabled(current_app.config, requested_content_type):
             return jsonify({"error": "Content module not enabled"}), 404
+
+        if not content_type_supports_reviews(requested_content_type):
+            return jsonify({"error": "Reviews are not available for this content type"}), 400
 
         enabled_types = (requested_content_type,)
 

@@ -6,7 +6,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import ThemeToggle from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
 import VersionBadge from './VersionBadge';
-import { getContentListPath, getEnabledContentModules, isContentModuleEnabled } from '../../config/contentModules';
+import { getContentListPath, getEnabledContentModules, getEnabledReviewableContentModules, isContentModuleEnabled } from '../../config/contentModules';
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -17,6 +17,7 @@ function Navbar() {
   const isPlacesEnabled = isContentModuleEnabled('place');
   const isMapEnabled = isPlacesEnabled && window.ENV?.ENABLE_MAP === 'true';
   const contentModules = getEnabledContentModules().filter((module) => module.contentType !== 'place');
+  const hasReviewableModules = getEnabledReviewableContentModules().length > 0;
 
   const handleLogout = async () => {
     await logout();
@@ -92,10 +93,12 @@ function Navbar() {
                   <span>{t('nav.map')}</span>
                 </Link>
               )}
-              <Link to="/reviews/new" className="flex items-center space-x-1 bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-sm font-medium">
-                <FiPlus className="w-4 h-4" />
-                <span>{t('nav.newReview')}</span>
-              </Link>
+              {hasReviewableModules && (
+                <Link to="/reviews/new" className="flex items-center space-x-1 bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-sm font-medium">
+                  <FiPlus className="w-4 h-4" />
+                  <span>{t('nav.newReview')}</span>
+                </Link>
+              )}
             </div>
           </div>
 
@@ -169,10 +172,12 @@ function Navbar() {
                 <span>{t('nav.map')}</span>
               </Link>
             )}
-            <Link to="/reviews/new" onClick={closeMobileMenu} className="flex items-center space-x-3 bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-base font-medium">
-              <FiPlus className="w-5 h-5" />
-              <span>{t('nav.newReview')}</span>
-            </Link>
+            {hasReviewableModules && (
+              <Link to="/reviews/new" onClick={closeMobileMenu} className="flex items-center space-x-3 bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-base font-medium">
+                <FiPlus className="w-5 h-5" />
+                <span>{t('nav.newReview')}</span>
+              </Link>
+            )}
             {user?.is_admin && (
               <Link to="/admin" onClick={closeMobileMenu} className="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-base font-medium">
                 <FiSettings className="w-5 h-5" />

@@ -8,7 +8,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import ReviewList from '../components/reviews/ReviewList';
 import PlaceForm from '../components/places/PlaceForm';
 import { useLanguage } from '../context/LanguageContext';
-import { getContentListPath, getContentModule, getNewReviewPath, isPlaceContentType } from '../config/contentModules';
+import { getContentListPath, getContentModule, getNewReviewPath, isPlaceContentType, supportsContentModuleReviews } from '../config/contentModules';
 import { getVisibleContentDetails } from '../utils/contentDetails';
 
 function PlaceDetailPage({ contentType = 'place' }) {
@@ -26,6 +26,7 @@ function PlaceDetailPage({ contentType = 'place' }) {
   const ModuleIcon = module.icon;
   const listPath = getContentListPath(module.contentType);
   const isPlace = isPlaceContentType(place?.content_type || contentType);
+  const supportsReviews = supportsContentModuleReviews(module.contentType);
   const visibleDetails = getVisibleContentDetails(module, place?.details);
 
   useEffect(() => {
@@ -146,17 +147,19 @@ function PlaceDetailPage({ contentType = 'place' }) {
                   <span>{t('places.owner')}: {place.creator_username}</span>
                 </p>
               )}
-              <div className="flex items-center space-x-3 mt-3">
-                {place.avg_rating ? (
-                  <>
-                    <StarRating rating={Math.round(place.avg_rating)} readonly />
-                    <span className="text-lg font-semibold text-gray-900 dark:text-white">{place.avg_rating}</span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">({place.review_count} {place.review_count === 1 ? t('places.review') : t('places.reviews')})</span>
-                  </>
-                ) : (
-                  <span className="text-gray-400 dark:text-gray-500">{t('places.noRatingsYet')}</span>
-                )}
-              </div>
+              {supportsReviews && (
+                <div className="flex items-center space-x-3 mt-3">
+                  {place.avg_rating ? (
+                    <>
+                      <StarRating rating={Math.round(place.avg_rating)} readonly />
+                      <span className="text-lg font-semibold text-gray-900 dark:text-white">{place.avg_rating}</span>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">({place.review_count} {place.review_count === 1 ? t('places.review') : t('places.reviews')})</span>
+                    </>
+                  ) : (
+                    <span className="text-gray-400 dark:text-gray-500">{t('places.noRatingsYet')}</span>
+                  )}
+                </div>
+              )}
               {visibleDetails.length > 0 && (
                 <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {visibleDetails.map((detail) => (
@@ -188,13 +191,15 @@ function PlaceDetailPage({ contentType = 'place' }) {
                   <span>{t(`visibility.badges.${visibilityMode}`)}</span>
                 </span>
               )}
-              <Link
-                to={getNewReviewPath(place.content_type, place.id)}
-                className="flex items-center space-x-1 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm"
-              >
-                <FiPlus className="w-4 h-4" />
-                <span>{t('places.writeReview')}</span>
-              </Link>
+              {supportsReviews && (
+                <Link
+                  to={getNewReviewPath(place.content_type, place.id)}
+                  className="flex items-center space-x-1 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm"
+                >
+                  <FiPlus className="w-4 h-4" />
+                  <span>{t('places.writeReview')}</span>
+                </Link>
+              )}
               {(user?.is_admin || place.created_by === user?.id) && (
                 <div className="flex space-x-3">
                   <button
@@ -219,18 +224,20 @@ function PlaceDetailPage({ contentType = 'place' }) {
       </div>
 
       {/* Reviews */}
-      <section>
-        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
-          {t('places.reviewsCount', { count: reviews.length })}
-        </h2>
-        <ReviewList
-          reviews={reviews}
-          showPlace={false}
-          emptyMessage={t('places.firstReview')}
-          onDelete={handleDeleteReview}
-          currentUser={user}
-        />
-      </section>
+      {supportsReviews && (
+        <section>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">
+            {t('places.reviewsCount', { count: reviews.length })}
+          </h2>
+          <ReviewList
+            reviews={reviews}
+            showPlace={false}
+            emptyMessage={t('places.firstReview')}
+            onDelete={handleDeleteReview}
+            currentUser={user}
+          />
+        </section>
+      )}
 
       <ConfirmDialog
         open={!!orphanedDialog}

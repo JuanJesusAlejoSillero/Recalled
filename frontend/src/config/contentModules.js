@@ -12,6 +12,7 @@ const CONTENT_MODULES = {
     contentType: 'place',
     routeSegment: 'places',
     envKey: 'ENABLE_PLACES',
+    supportsReviews: true,
     icon: FiMapPin,
     navKey: 'nav.places',
     titleKey: 'places.title',
@@ -29,6 +30,7 @@ const CONTENT_MODULES = {
     contentType: 'movie',
     routeSegment: 'movies',
     envKey: 'ENABLE_MOVIES',
+    supportsReviews: true,
     icon: FiFilm,
     navKey: 'nav.movies',
     titleKey: 'contentModules.movie.title',
@@ -52,6 +54,7 @@ const CONTENT_MODULES = {
     contentType: 'series',
     routeSegment: 'series',
     envKey: 'ENABLE_SERIES',
+    supportsReviews: true,
     icon: FiTv,
     navKey: 'nav.series',
     titleKey: 'contentModules.series.title',
@@ -75,6 +78,7 @@ const CONTENT_MODULES = {
     contentType: 'book',
     routeSegment: 'books',
     envKey: 'ENABLE_BOOKS',
+    supportsReviews: true,
     icon: FiBookOpen,
     navKey: 'nav.books',
     titleKey: 'contentModules.book.title',
@@ -98,6 +102,7 @@ const CONTENT_MODULES = {
     contentType: 'videogame',
     routeSegment: 'videogames',
     envKey: 'ENABLE_VIDEOGAMES',
+    supportsReviews: true,
     icon: FiMonitor,
     navKey: 'nav.videogames',
     titleKey: 'contentModules.videogame.title',
@@ -121,6 +126,7 @@ const CONTENT_MODULES = {
     contentType: 'person',
     routeSegment: 'people',
     envKey: 'ENABLE_PEOPLE',
+    supportsReviews: false,
     icon: FiUser,
     navKey: 'nav.people',
     titleKey: 'contentModules.person.title',
@@ -138,6 +144,7 @@ const CONTENT_MODULES = {
       { key: 'death_year', type: 'number' },
       { key: 'nationality', type: 'text' },
       { key: 'known_for', type: 'text', fullWidth: true },
+      { key: 'notes', type: 'textarea', fullWidth: true },
     ],
   },
 };
@@ -168,6 +175,10 @@ export function getEnabledContentModule(contentType = 'place') {
   return getEnabledContentModules()[0] || CONTENT_MODULES.place;
 }
 
+export function supportsContentModuleReviews(contentType) {
+  return getContentModule(contentType).supportsReviews !== false;
+}
+
 export function isContentModuleEnabled(contentType) {
   const module = getContentModule(contentType);
   if (!module.envKey) {
@@ -186,6 +197,19 @@ export function getEnabledContentModules() {
   return Object.values(CONTENT_MODULES).filter((module) => isContentModuleEnabled(module.contentType));
 }
 
+export function getEnabledReviewableContentModules() {
+  return getEnabledContentModules().filter((module) => supportsContentModuleReviews(module.contentType));
+}
+
+export function getEnabledReviewableContentModule(contentType = 'place') {
+  const module = getEnabledContentModule(contentType);
+  if (supportsContentModuleReviews(module.contentType)) {
+    return module;
+  }
+
+  return getEnabledReviewableContentModules()[0] || module;
+}
+
 export function getContentListPath(contentType) {
   return `/${getContentModule(contentType).routeSegment}`;
 }
@@ -195,7 +219,7 @@ export function getContentDetailPath(contentType, id) {
 }
 
 export function getNewReviewPath(contentType, placeId = null) {
-  const searchParams = new URLSearchParams({ contentType: getEnabledContentModule(contentType).contentType });
+  const searchParams = new URLSearchParams({ contentType: getEnabledReviewableContentModule(contentType).contentType });
   if (placeId != null) {
     searchParams.set('place', String(placeId));
   }
