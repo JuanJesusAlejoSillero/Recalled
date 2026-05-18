@@ -10,7 +10,6 @@ function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const { t, language } = useLanguage();
-  const locale = language === 'es' ? 'es-ES' : 'en-US';
 
   const loadUsers = async () => {
     try {
@@ -88,7 +87,7 @@ function UserManagement() {
                     {user.is_admin ? t('admin.roleAdmin') : t('admin.roleUser')}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(user.created_at, locale)}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(user.created_at, language)}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-right">
                   <button
                     onClick={() => handleDelete(user.id, user.username)}

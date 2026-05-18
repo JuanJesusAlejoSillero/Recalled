@@ -8,7 +8,12 @@ import LocationPickerMap from '../common/LocationPickerMap';
 import VisibilitySelector from '../common/VisibilitySelector';
 import { placesAPI } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
-import { getThumbnailUrl } from '../../utils/helpers';
+import {
+  formatDateInputValue,
+  getDateInputPlaceholder,
+  getThumbnailUrl,
+  parseDateInputValue,
+} from '../../utils/helpers';
 import { getEnabledContentModule, getEnabledContentModules } from '../../config/contentModules';
 import {
   buildContentDetailsPayload,
@@ -50,7 +55,7 @@ function ReviewForm({
   loading = false,
   onDirtyChange,
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const initialContentType = getEnabledContentModule(initialData?.place_content_type || contentType).contentType;
   const [selectedContentType, setSelectedContentType] = useState(initialContentType);
   const module = getEnabledContentModule(selectedContentType);
@@ -83,10 +88,13 @@ function ReviewForm({
   const [geocodeResults, setGeocodeResults] = useState([]);
   const [geocoding, setGeocoding] = useState(false);
   const [geocodeSearched, setGeocodeSearched] = useState(false);
+  const [visitDateInput, setVisitDateInput] = useState(() => formatDateInputValue(initialData?.visit_date, language));
+  const [visitDateError, setVisitDateError] = useState('');
 
   // Dirty tracking
   const initialSnapshot = useRef(null);
   const hasMounted = useRef(false);
+  const previousLanguage = useRef(language);
 
   const preselectedPlaceId = initialData?.place_id ? String(initialData.place_id) : '';
 
@@ -95,7 +103,6 @@ function ReviewForm({
       place_id: preselectedPlaceId,
       title: initialData?.title || '',
       comment: initialData?.comment || '',
-      visit_date: initialData?.visit_date || '',
     },
   });
 
@@ -159,7 +166,7 @@ function ReviewForm({
         place_id: preselectedPlaceId,
         title: initialData?.title || '',
         comment: initialData?.comment || '',
-        visit_date: initialData?.visit_date || '',
+        visit_date: formatDateInputValue(initialData?.visit_date, language),
         rating: initialData?.rating || 0,
         isPrivate: initialData?.is_private || false,
         isNewPlace: false,
@@ -186,7 +193,7 @@ function ReviewForm({
       selectedContentType !== snap.selectedContentType ||
       watchedFields.title !== snap.title ||
       watchedFields.comment !== snap.comment ||
-      watchedFields.visit_date !== snap.visit_date ||
+      visitDateInput !== snap.visit_date ||
       watchedFields.place_id !== snap.place_id ||
       rating !== snap.rating ||
       isPrivate !== snap.isPrivate ||
@@ -206,6 +213,7 @@ function ReviewForm({
   }, [
     selectedContentType,
     watchedFields,
+    visitDateInput,
     rating,
     isPrivate,
     isNewPlace,
@@ -222,6 +230,24 @@ function ReviewForm({
     photosToDelete,
     onDirtyChange,
   ]);
+
+  useEffect(() => {
+    if (previousLanguage.current === language) {
+      return;
+    }
+
+    const parsedVisitDate = parseDateInputValue(visitDateInput, previousLanguage.current);
+    previousLanguage.current = language;
+
+    if (parsedVisitDate.isValid) {
+      setVisitDateInput(parsedVisitDate.displayValue ? formatDateInputValue(parsedVisitDate.isoValue, language) : '');
+      setVisitDateError('');
+    }
+
+    if (initialSnapshot.current) {
+      initialSnapshot.current.visit_date = formatDateInputValue(initialData?.visit_date, language);
+    }
+  }, [initialData?.visit_date, language]);
 
   const handleContentTypeChange = (event) => {
     const nextContentType = event.target.value;
@@ -320,7 +346,25 @@ function ReviewForm({
     setVisibleUserIds(visibleUserIds.filter((userId) => currentPlaceVisibilityUserIds.includes(userId)));
   };
 
-  const buildSubmitPayload = (data) => {
+  const handleVisitDateBlur = () => {
+    const parsedVisitDate = parseDateInputValue(visitDateInput, language);
+
+    if (!visitDateInput.trim()) {
+      setVisitDateInput('');
+      setVisitDateError('');
+      return;
+    }
+
+    if (!parsedVisitDate.isValid) {
+      setVisitDateError(t('reviewForm.visitDateInvalid', { format: getDateInputPlaceholder(language) }));
+      return;
+    }
+
+    setVisitDateInput(parsedVisitDate.displayValue);
+    setVisitDateError('');
+  };
+
+  const buildSubmitPayload = (data, visitDateValue) => {
     const includeReviewVisibilityUserIds = isPrivate && !shouldUseInheritedReviewVisibility;
 
     if (isNewPlace) {
@@ -339,7 +383,7 @@ function ReviewForm({
       return {
         ...rest,
         rating,
-        visit_date: data.visit_date || null,
+        visit_date: visitDateValue,
         ...placeFields,
         is_private: isPrivate,
         ...(includeReviewVisibilityUserIds ? { visibility_user_ids: visibleUserIds } : {}),
@@ -349,7 +393,7 @@ function ReviewForm({
       ...data,
       rating,
       place_id: parseInt(data.place_id),
-      visit_date: data.visit_date || null,
+      visit_date: visitDateValue,
       is_private: isPrivate,
       ...(includeReviewVisibilityUserIds ? { visibility_user_ids: visibleUserIds } : {}),
     };
@@ -367,6 +411,13 @@ function ReviewForm({
     setRatingError('');
     setPlaceError('');
 
+    const parsedVisitDate = parseDateInputValue(visitDateInput, language);
+    if (!parsedVisitDate.isValid) {
+      setVisitDateError(t('reviewForm.visitDateInvalid', { format: getDateInputPlaceholder(language) }));
+      return;
+    }
+    setVisitDateError('');
+
     if (isNewPlace) {
       if (!newPlaceName.trim()) {
         setPlaceError(t('reviewForm.placeNameRequired'));
@@ -379,7 +430,7 @@ function ReviewForm({
       }
     }
 
-    const payload = buildSubmitPayload(data);
+    const payload = buildSubmitPayload(data, parsedVisitDate.isoValue || null);
     const placePrivate = getPlaceIsPrivate();
 
     // Check privacy mismatch
@@ -741,10 +792,23 @@ function ReviewForm({
       <div>
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('reviewForm.visitDate')}</label>
         <input
-          type="date"
-          {...register('visit_date')}
+          type="text"
+          value={visitDateInput}
+          onChange={(event) => {
+            setVisitDateInput(event.target.value);
+            if (visitDateError) {
+              setVisitDateError('');
+            }
+          }}
+          onBlur={handleVisitDateBlur}
+          inputMode="numeric"
+          autoComplete="off"
           className={inputClass}
+          placeholder={getDateInputPlaceholder(language)}
         />
+        {visitDateError
+          ? <p className="text-red-500 text-xs mt-1">{visitDateError}</p>
+          : <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t('reviewForm.visitDateFormatHint', { format: getDateInputPlaceholder(language) })}</p>}
       </div>
 
       <div className="space-y-3">

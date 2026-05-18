@@ -8,7 +8,6 @@ import { getContentDetailPath, getContentModule } from '../../config/contentModu
 
 function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) {
   const { t, language } = useLanguage();
-  const locale = language === 'es' ? 'es-ES' : 'en-US';
   const [lightbox, setLightbox] = useState(null);
   const [expanded, setExpanded] = useState(false);
   const module = getContentModule(review.place_content_type);
@@ -138,7 +137,7 @@ function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) 
 
       <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
         <span className="text-xs text-gray-400 dark:text-gray-500">
-          {review.visit_date ? t('reviewCard.visited', { date: formatDate(review.visit_date, locale) }) : formatDate(review.created_at, locale)}
+          {review.visit_date ? t('reviewCard.visited', { date: formatDate(review.visit_date, language) }) : formatDate(review.created_at, language)}
         </span>
         {onDelete && (isOwner || isAdmin) && (
           <div className="flex space-x-2">
