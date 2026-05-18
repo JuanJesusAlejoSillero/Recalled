@@ -14,10 +14,13 @@ function Navbar() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [modulesMenuOpen, setModulesMenuOpen] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
   const isPlacesEnabled = isContentModuleEnabled('place');
   const isMapEnabled = isPlacesEnabled && window.ENV?.ENABLE_MAP === 'true';
   const contentModules = getEnabledContentModules().filter((module) => module.contentType !== 'place');
+  const peopleModule = contentModules.find((module) => module.contentType === 'person');
   const hasReviewableModules = getEnabledReviewableContentModules().length > 0;
+  const hasCreateOptions = hasReviewableModules || Boolean(peopleModule);
 
   const handleLogout = async () => {
     await logout();
@@ -27,6 +30,7 @@ function Navbar() {
   const closeMobileMenu = () => {
     setMobileMenuOpen(false);
     setModulesMenuOpen(false);
+    setCreateMenuOpen(false);
   };
 
   return (
@@ -40,12 +44,12 @@ function Navbar() {
             </Link>
 
             <div className="hidden lg:flex items-center space-x-4">
-              <Link to="/" className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
+              <Link to="/" className="flex items-center space-x-1 whitespace-nowrap text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
                 <FiHome className="w-4 h-4" />
                 <span>{t('nav.home')}</span>
               </Link>
               {isPlacesEnabled && (
-                <Link to="/places" className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
+                <Link to="/places" className="flex items-center space-x-1 whitespace-nowrap text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
                   <FiMapPin className="w-4 h-4" />
                   <span>{t('nav.places')}</span>
                 </Link>
@@ -54,8 +58,11 @@ function Navbar() {
                 <div className="relative">
                   <button
                     type="button"
-                    onClick={() => setModulesMenuOpen((open) => !open)}
-                    className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium"
+                    onClick={() => {
+                      setModulesMenuOpen((open) => !open);
+                      setCreateMenuOpen(false);
+                    }}
+                    className="flex items-center space-x-1 whitespace-nowrap text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium"
                   >
                     <FiGrid className="w-4 h-4" />
                     <span>{t('nav.modules')}</span>
@@ -83,21 +90,56 @@ function Navbar() {
                   )}
                 </div>
               )}
-              <Link to="/my-reviews" className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
+              <Link to="/my-reviews" className="flex items-center space-x-1 whitespace-nowrap text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
                 <FiStar className="w-4 h-4" />
                 <span>{t('nav.myReviews')}</span>
               </Link>
               {isMapEnabled && (
-                <Link to="/map" className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
+                <Link to="/map" className="flex items-center space-x-1 whitespace-nowrap text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
                   <FiGlobe className="w-4 h-4" />
                   <span>{t('nav.map')}</span>
                 </Link>
               )}
-              {hasReviewableModules && (
-                <Link to="/reviews/new" className="flex items-center space-x-1 bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-sm font-medium">
-                  <FiPlus className="w-4 h-4" />
-                  <span>{t('nav.newReview')}</span>
-                </Link>
+              {hasCreateOptions && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCreateMenuOpen((open) => !open);
+                      setModulesMenuOpen(false);
+                    }}
+                    className="flex items-center space-x-1 whitespace-nowrap bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    <FiPlus className="w-4 h-4" />
+                    <span>{t('nav.newItem')}</span>
+                    <FiChevronDown className={`w-4 h-4 transition-transform ${createMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {createMenuOpen && (
+                    <div className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                      {hasReviewableModules && (
+                        <Link
+                          to="/reviews/new"
+                          onClick={() => setCreateMenuOpen(false)}
+                          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-primary-400"
+                        >
+                          <FiStar className="h-4 w-4" />
+                          <span>{t('nav.newReview')}</span>
+                        </Link>
+                      )}
+                      {peopleModule && (
+                        <Link
+                          to={`${getContentListPath(peopleModule.contentType)}?create=1`}
+                          onClick={() => setCreateMenuOpen(false)}
+                          className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-primary-400"
+                        >
+                          <peopleModule.icon className="h-4 w-4" />
+                          <span>{t(peopleModule.newButtonKey)}</span>
+                        </Link>
+                      )}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -107,7 +149,7 @@ function Navbar() {
             <LanguageToggle />
             <ThemeToggle />
             {user?.is_admin && (
-              <Link to="/admin" className="hidden lg:flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
+              <Link to="/admin" className="hidden lg:flex items-center space-x-1 whitespace-nowrap text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
                 <FiSettings className="w-4 h-4" />
                 <span>{t('nav.admin')}</span>
               </Link>
@@ -172,11 +214,24 @@ function Navbar() {
                 <span>{t('nav.map')}</span>
               </Link>
             )}
-            {hasReviewableModules && (
-              <Link to="/reviews/new" onClick={closeMobileMenu} className="flex items-center space-x-3 bg-primary-600 text-white hover:bg-primary-700 px-3 py-2 rounded-md text-base font-medium">
-                <FiPlus className="w-5 h-5" />
-                <span>{t('nav.newReview')}</span>
-              </Link>
+            {hasCreateOptions && (
+              <div className="rounded-md bg-primary-50 p-1 dark:bg-primary-900/20">
+                <div className="px-3 py-2 text-sm font-semibold text-primary-700 dark:text-primary-300">
+                  {t('nav.newItem')}
+                </div>
+                {hasReviewableModules && (
+                  <Link to="/reviews/new" onClick={closeMobileMenu} className="flex items-center space-x-3 rounded-md text-primary-700 hover:bg-primary-100 dark:text-primary-300 dark:hover:bg-primary-900/30 px-3 py-2 text-base font-medium">
+                    <FiStar className="w-5 h-5" />
+                    <span>{t('nav.newReview')}</span>
+                  </Link>
+                )}
+                {peopleModule && (
+                  <Link to={`${getContentListPath(peopleModule.contentType)}?create=1`} onClick={closeMobileMenu} className="flex items-center space-x-3 rounded-md text-primary-700 hover:bg-primary-100 dark:text-primary-300 dark:hover:bg-primary-900/30 px-3 py-2 text-base font-medium">
+                    <peopleModule.icon className="w-5 h-5" />
+                    <span>{t(peopleModule.newButtonKey)}</span>
+                  </Link>
+                )}
+              </div>
             )}
             {user?.is_admin && (
               <Link to="/admin" onClick={closeMobileMenu} className="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-base font-medium">

@@ -9,8 +9,9 @@ const translations = {
       books: 'Libros',
       videogames: 'Videojuegos',
       people: 'Personas',
-      modules: 'Apartados',
+      modules: 'Categorías',
       myReviews: 'Mis Reviews',
+      newItem: 'Nuevo',
       newReview: 'Nueva Review',
       admin: 'Admin',
       logout: 'Salir',
@@ -175,7 +176,7 @@ const translations = {
       },
       person: {
         title: 'Personas',
-        newItem: 'Nueva ficha',
+        newItem: 'Nueva Ficha',
         searchPlaceholder: 'Buscar personas o notas...',
         empty: 'No hay fichas de personas registradas.',
         nameLabel: 'Nombre de la persona',
@@ -390,6 +391,7 @@ const translations = {
 
     // Common
     common: {
+      newItem: 'Nuevo',
       newReview: 'Nueva Review',
     },
 
@@ -491,8 +493,9 @@ const translations = {
       books: 'Books',
       videogames: 'Videogames',
       people: 'People',
-      modules: 'Sections',
+      modules: 'Categories',
       myReviews: 'My Reviews',
+      newItem: 'New',
       newReview: 'New Review',
       admin: 'Admin',
       logout: 'Log out',
@@ -858,6 +861,7 @@ const translations = {
     },
 
     common: {
+      newItem: 'New',
       newReview: 'New Review',
     },
 

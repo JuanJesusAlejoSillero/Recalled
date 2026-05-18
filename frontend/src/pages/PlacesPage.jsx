@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { FiPlus, FiSearch } from 'react-icons/fi';
 import { placesAPI } from '../services/api';
 import PlaceList from '../components/places/PlaceList';
@@ -16,11 +17,13 @@ function PlacesPage({ contentType = 'place' }) {
   const { user } = useAuth();
   const { t } = useLanguage();
   const module = getContentModule(contentType);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const shouldOpenCreateForm = searchParams.get('create') === '1';
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(shouldOpenCreateForm);
   const [formLoading, setFormLoading] = useState(false);
   const [formDirty, setFormDirty] = useState(false);
   const [page, setPage] = useState(1);
@@ -30,12 +33,35 @@ function PlacesPage({ contentType = 'place' }) {
     setFormDirty(dirty);
   }, []);
 
+  const clearCreateIntent = useCallback(() => {
+    if (searchParams.get('create') !== '1') {
+      return;
+    }
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('create');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (shouldOpenCreateForm) {
+      setShowForm(true);
+    }
+  }, [shouldOpenCreateForm]);
+
   const toggleForm = () => {
     if (showForm && formDirty) {
       if (!window.confirm(t('reviewForm.unsavedChanges'))) return;
     }
-    setShowForm(!showForm);
-    if (showForm) setFormDirty(false);
+
+    if (showForm) {
+      setShowForm(false);
+      setFormDirty(false);
+      clearCreateIntent();
+      return;
+    }
+
+    setShowForm(true);
   };
 
   const loadPlaces = async () => {
@@ -68,6 +94,8 @@ function PlacesPage({ contentType = 'place' }) {
     try {
       await placesAPI.create(data);
       setShowForm(false);
+      setFormDirty(false);
+      clearCreateIntent();
       loadPlaces();
     } catch (err) {
       alert(err.response?.data?.error || t('places.errorCreate'));
@@ -82,7 +110,7 @@ function PlacesPage({ contentType = 'place' }) {
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t(module.titleKey)}</h1>
         <button
           onClick={toggleForm}
-          className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm font-medium"
+          className="flex items-center space-x-2 whitespace-nowrap bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm font-medium"
         >
           <FiPlus className="w-4 h-4" />
           <span>{showForm ? t('places.cancel') : t(module.newButtonKey)}</span>
@@ -91,7 +119,7 @@ function PlacesPage({ contentType = 'place' }) {
 
       {showForm && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <PlaceForm contentType={module.contentType} onSubmit={handleCreatePlace} loading={formLoading} onCancel={() => { setFormDirty(false); setShowForm(false); }} onDirtyChange={handleFormDirtyChange} />
+          <PlaceForm contentType={module.contentType} onSubmit={handleCreatePlace} loading={formLoading} onCancel={() => { setFormDirty(false); setShowForm(false); clearCreateIntent(); }} onDirtyChange={handleFormDirtyChange} />
         </div>
       )}
 
