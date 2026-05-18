@@ -46,7 +46,7 @@ const translations = {
 
     // Home
     home: {
-      greeting: 'Hola, {username}!',
+      greeting: '¡Hola, {username}!',
       subtitle: 'Bienvenido a tu colección de reviews',
       stats: {
         reviews: 'Reviews',
@@ -220,7 +220,7 @@ const translations = {
         start_year: 'Ej: 2017',
         end_year: 'Ej: 2020',
         seasons: 'Ej: 3',
-        author: 'Ej: Gabriel Garcia Marquez',
+        author: 'Ej: Gabriel García Márquez',
         publication_year: 'Ej: 1967',
         pages: 'Ej: 417',
         publisher: 'Ej: Editorial Sudamericana',
@@ -699,7 +699,7 @@ const translations = {
         start_year: 'E.g. 2017',
         end_year: 'E.g. 2020',
         seasons: 'E.g. 3',
-        author: 'E.g. Gabriel Garcia Marquez',
+        author: 'E.g. Gabriel García Márquez',
         publication_year: 'E.g. 1967',
         pages: 'E.g. 417',
         publisher: 'E.g. Editorial Sudamericana',
