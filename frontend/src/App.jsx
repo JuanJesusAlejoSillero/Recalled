@@ -12,10 +12,12 @@ import CreateReviewPage from './pages/CreateReviewPage';
 import AdminPage from './pages/AdminPage';
 import SettingsPage from './pages/SettingsPage';
 import MapPage from './pages/MapPage';
-import { getEnabledContentModules } from './config/contentModules';
+import { getEnabledContentModules, isContentModuleEnabled } from './config/contentModules';
 
-const isMapEnabled = window.ENV?.ENABLE_MAP === 'true';
-const extraContentModules = getEnabledContentModules().filter((module) => module.contentType !== 'place');
+const enabledContentModules = getEnabledContentModules();
+const isPlacesEnabled = isContentModuleEnabled('place');
+const isMapEnabled = isPlacesEnabled && window.ENV?.ENABLE_MAP === 'true';
+const extraContentModules = enabledContentModules.filter((module) => module.contentType !== 'place');
 
 function App() {
   const { user, loading } = useAuth();
@@ -35,8 +37,8 @@ function App() {
         <Routes>
           <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
           <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-          <Route path="/places" element={<ProtectedRoute><PlacesPage contentType="place" /></ProtectedRoute>} />
-          <Route path="/places/:id" element={<ProtectedRoute><PlaceDetailPage contentType="place" /></ProtectedRoute>} />
+          {isPlacesEnabled && <Route path="/places" element={<ProtectedRoute><PlacesPage contentType="place" /></ProtectedRoute>} />}
+          {isPlacesEnabled && <Route path="/places/:id" element={<ProtectedRoute><PlaceDetailPage contentType="place" /></ProtectedRoute>} />}
           {extraContentModules.map((module) => (
             <Route
               key={module.contentType}

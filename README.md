@@ -20,8 +20,8 @@ A self-hosted web application to keep track of places and other reviewable items
 - **Personal dashboard** - Your stats, recent reviews, and top-rated content across enabled modules
 - **Settings** - Change username, password, enable/disable 2FA, and delete account
 - **Version badge** - Displays app version in navbar (baked at Docker build time)
-- **World map** - Optional interactive map showing all your visited places (configurable via `ENABLE_MAP`), with address geocoding via Nominatim so you don't need to enter coordinates manually
-- **Module toggles** - Enable or disable movies, series, books, videogames, and people independently through Compose/env flags
+- **World map** - Optional interactive map showing all your visited places (configurable via `ENABLE_MAP` and shown only when `ENABLE_PLACES=true`), with address geocoding via Nominatim so you don't need to enter coordinates manually
+- **Module toggles** - Enable or disable places, movies, series, books, videogames, and people independently through Compose/env flags
 - **Dark mode** - Toggle between light and dark themes
 - **Multi-language** - Spanish and English with automatic browser detection
 - **Responsive** - Mobile-friendly with hamburger menu navigation
@@ -111,6 +111,7 @@ All configuration is done through the `.env` file. See [.env.example](.env.examp
 | `APP_VERSION`             | `dev`                            | Tag-like string such as `v1.6.0-rc1`                        | Local backend build version for the navbar badge                                |
 | `VITE_API_URL`            | `/api/v1`                        | Relative path or absolute URL                               | Frontend API base URL                                                           |
 | `ENABLE_MAP`              | `true`                           | `true`, `false`                                             | Enable the world map page (Leaflet + OpenStreetMap)                             |
+| `ENABLE_PLACES`           | `true`                           | `true`, `false`                                             | Enable the places section and backend access; the map also requires this        |
 | `ENABLE_MOVIES`           | `true`                           | `true`, `false`                                             | Enable the movies section and backend access                                    |
 | `ENABLE_SERIES`           | `true`                           | `true`, `false`                                             | Enable the series section and backend access                                    |
 | `ENABLE_BOOKS`            | `true`                           | `true`, `false`                                             | Enable the books section and backend access                                     |
@@ -118,6 +119,7 @@ All configuration is done through the `.env` file. See [.env.example](.env.examp
 | `ENABLE_PEOPLE`           | `true`                           | `true`, `false`                                             | Enable the people section and backend access                                    |
 
 The example defaults assume HTTPS and Redis-backed rate limiting. If you run the app without HTTPS, set `JWT_COOKIE_SECURE=false` and keep `JWT_COOKIE_SAMESITE=Lax` before starting the stack. If you do not run Redis, switch `RATELIMIT_STORAGE_URI` to `memory://` (or point it to another Redis instance).
+`ENABLE_MAP=true` only exposes the map when `ENABLE_PLACES=true`, because the map only renders place records with coordinates.
 Set `PROXY_FIX_X_FOR=2` when Recalled sits behind an additional reverse proxy that forwards requests to the frontend container.
 
 ## Privacy Model

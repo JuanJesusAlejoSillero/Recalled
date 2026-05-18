@@ -11,7 +11,7 @@ const CONTENT_MODULES = {
   place: {
     contentType: 'place',
     routeSegment: 'places',
-    envKey: null,
+    envKey: 'ENABLE_PLACES',
     icon: FiMapPin,
     navKey: 'nav.places',
     titleKey: 'places.title',
@@ -165,7 +165,7 @@ export function getEnabledContentModule(contentType = 'place') {
     return module;
   }
 
-  return CONTENT_MODULES.place;
+  return getEnabledContentModules()[0] || CONTENT_MODULES.place;
 }
 
 export function isContentModuleEnabled(contentType) {

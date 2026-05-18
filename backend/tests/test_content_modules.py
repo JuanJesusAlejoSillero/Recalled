@@ -111,6 +111,33 @@ def test_disabled_content_module_is_rejected_for_create_and_read(app, client):
     assert list_response.get_json()["places"] == []
 
 
+def test_disabled_places_module_is_rejected_and_hidden_from_stats(app, client):
+    alice_id = _create_user(app, "alice")
+    place_id = _create_place(app, "Paris", created_by=alice_id, content_type="place")
+    _create_review(app, alice_id, place_id, title="Trip")
+    app.config["CONTENT_MODULE_FLAGS"]["place"] = False
+
+    _login_session(client, "alice")
+
+    create_response = client.post(
+        "/api/v1/places",
+        json={"name": "Berlin", "content_type": "place"},
+        headers=_csrf_headers(client),
+    )
+    detail_response = client.get(f"/api/v1/places/{place_id}")
+    list_response = client.get("/api/v1/places")
+    stats_response = client.get("/api/v1/stats/places")
+
+    assert create_response.status_code == 404
+    assert create_response.get_json()["error"] == "Content module not enabled"
+    assert detail_response.status_code == 404
+    assert detail_response.get_json()["error"] == "Content module not enabled"
+    assert list_response.status_code == 200
+    assert list_response.get_json()["places"] == []
+    assert stats_response.status_code == 200
+    assert stats_response.get_json()["places"] == []
+
+
 def test_inline_review_creation_serializes_place_content_type(app, client):
     _create_user(app, "alice")
     _login_session(client, "alice")

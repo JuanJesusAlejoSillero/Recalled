@@ -47,7 +47,7 @@ class Config:
         return [item.strip() for item in value.split(",") if item.strip()]
 
     CONTENT_MODULE_FLAGS = {
-        "place": True,
+        "place": _get_bool.__func__("ENABLE_PLACES", True),
         "movie": _get_bool.__func__("ENABLE_MOVIES", True),
         "series": _get_bool.__func__("ENABLE_SERIES", True),
         "book": _get_bool.__func__("ENABLE_BOOKS", True),

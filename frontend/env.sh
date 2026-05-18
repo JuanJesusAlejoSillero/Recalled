@@ -11,6 +11,7 @@ cat <<EOF > $CONFIG_FILE
 window.ENV = {
   VITE_API_URL: "${VITE_API_URL:-/api/v1}",
   ENABLE_MAP: "${ENABLE_MAP:-false}",
+  ENABLE_PLACES: "${ENABLE_PLACES:-true}",
   ENABLE_MOVIES: "${ENABLE_MOVIES:-true}",
   ENABLE_SERIES: "${ENABLE_SERIES:-true}",
   ENABLE_BOOKS: "${ENABLE_BOOKS:-true}",

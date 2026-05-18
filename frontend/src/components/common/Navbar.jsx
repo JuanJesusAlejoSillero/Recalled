@@ -6,7 +6,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import ThemeToggle from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
 import VersionBadge from './VersionBadge';
-import { getContentListPath, getEnabledContentModules } from '../../config/contentModules';
+import { getContentListPath, getEnabledContentModules, isContentModuleEnabled } from '../../config/contentModules';
 
 function Navbar() {
   const { user, logout } = useAuth();
@@ -14,7 +14,8 @@ function Navbar() {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [modulesMenuOpen, setModulesMenuOpen] = useState(false);
-  const isMapEnabled = window.ENV?.ENABLE_MAP === 'true';
+  const isPlacesEnabled = isContentModuleEnabled('place');
+  const isMapEnabled = isPlacesEnabled && window.ENV?.ENABLE_MAP === 'true';
   const contentModules = getEnabledContentModules().filter((module) => module.contentType !== 'place');
 
   const handleLogout = async () => {
@@ -42,10 +43,12 @@ function Navbar() {
                 <FiHome className="w-4 h-4" />
                 <span>{t('nav.home')}</span>
               </Link>
-              <Link to="/places" className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
-                <FiMapPin className="w-4 h-4" />
-                <span>{t('nav.places')}</span>
-              </Link>
+              {isPlacesEnabled && (
+                <Link to="/places" className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
+                  <FiMapPin className="w-4 h-4" />
+                  <span>{t('nav.places')}</span>
+                </Link>
+              )}
               {contentModules.length > 0 && (
                 <div className="relative">
                   <button
@@ -135,10 +138,12 @@ function Navbar() {
               <FiHome className="w-5 h-5" />
               <span>{t('nav.home')}</span>
             </Link>
-            <Link to="/places" onClick={closeMobileMenu} className="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-base font-medium">
-              <FiMapPin className="w-5 h-5" />
-              <span>{t('nav.places')}</span>
-            </Link>
+            {isPlacesEnabled && (
+              <Link to="/places" onClick={closeMobileMenu} className="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-base font-medium">
+                <FiMapPin className="w-5 h-5" />
+                <span>{t('nav.places')}</span>
+              </Link>
+            )}
             {contentModules.map((module) => {
               const Icon = module.icon;
 

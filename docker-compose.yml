@@ -34,6 +34,7 @@ services:
       - "RATELIMIT_STORAGE_URI=${RATELIMIT_STORAGE_URI:-redis://redis:6379/0}"
       - "JWT_COOKIE_SECURE=${JWT_COOKIE_SECURE:-true}"
       - "JWT_COOKIE_SAMESITE=${JWT_COOKIE_SAMESITE:-Lax}"
+      - "ENABLE_PLACES=${ENABLE_PLACES:-true}"
       - "ENABLE_MOVIES=${ENABLE_MOVIES:-true}"
       - "ENABLE_SERIES=${ENABLE_SERIES:-true}"
       - "ENABLE_BOOKS=${ENABLE_BOOKS:-true}"
@@ -64,6 +65,7 @@ services:
     environment:
       - VITE_API_URL=${VITE_API_URL:-/api/v1}
       - ENABLE_MAP=${ENABLE_MAP:-true}
+      - ENABLE_PLACES=${ENABLE_PLACES:-true}
       - ENABLE_MOVIES=${ENABLE_MOVIES:-true}
       - ENABLE_SERIES=${ENABLE_SERIES:-true}
       - ENABLE_BOOKS=${ENABLE_BOOKS:-true}
