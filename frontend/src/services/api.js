@@ -156,7 +156,7 @@ export const reviewsAPI = {
 // --- Stats ---
 export const statsAPI = {
   user: (userId) => api.get(`/stats/user/${userId}`),
-  topPlaces: () => api.get('/stats/places'),
+  topPlaces: (params) => api.get('/stats/places', { params }),
 };
 
 export default api;

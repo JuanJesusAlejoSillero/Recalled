@@ -2,6 +2,8 @@
 
 from marshmallow import Schema, fields, validate, pre_load
 
+from app.utils.content_details import normalize_content_details
+from app.utils.content_types import CONTENT_TYPES, DEFAULT_CONTENT_TYPE
 from app.utils.security import sanitize_string
 
 
@@ -15,7 +17,12 @@ class PlaceSchema(Schema):
     """Schema for serializing place data."""
 
     id = fields.Int(dump_only=True)
+    content_type = fields.Str(
+        required=True,
+        validate=validate.OneOf(CONTENT_TYPES),
+    )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=200))
+    details = fields.Dict(dump_default=dict)
     address = fields.Str(allow_none=True)
     latitude = fields.Float(allow_none=True, validate=validate.Range(min=-90, max=90))
     longitude = fields.Float(allow_none=True, validate=validate.Range(min=-180, max=180))
@@ -28,7 +35,12 @@ class PlaceSchema(Schema):
 class PlaceCreateSchema(Schema):
     """Schema for creating a place."""
 
+    content_type = fields.Str(
+        load_default=DEFAULT_CONTENT_TYPE,
+        validate=validate.OneOf(CONTENT_TYPES),
+    )
     name = fields.Str(required=True, validate=validate.Length(min=1, max=200))
+    details = fields.Dict(load_default=dict)
     address = fields.Str(allow_none=True, load_default=None)
     latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
     longitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180))
@@ -43,6 +55,10 @@ class PlaceCreateSchema(Schema):
     @pre_load
     def sanitize(self, data, **kwargs):
         data["name"] = sanitize_string(data.get("name"))
+        data["details"] = normalize_content_details(
+            data.get("content_type", DEFAULT_CONTENT_TYPE),
+            data.get("details"),
+        )
         if "address" in data:
             data["address"] = sanitize_string(data.get("address"))
         return data
@@ -51,7 +67,9 @@ class PlaceCreateSchema(Schema):
 class PlaceUpdateSchema(Schema):
     """Schema for updating a place."""
 
+    content_type = fields.Str(validate=validate.OneOf(CONTENT_TYPES))
     name = fields.Str(validate=validate.Length(min=1, max=200))
+    details = fields.Dict()
     address = fields.Str(allow_none=True, load_default=None)
     latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
     longitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-180, max=180))
@@ -66,6 +84,11 @@ class PlaceUpdateSchema(Schema):
     def sanitize(self, data, **kwargs):
         if "name" in data:
             data["name"] = sanitize_string(data.get("name"))
+        if "details" in data and "content_type" in data:
+            data["details"] = normalize_content_details(
+                data.get("content_type", DEFAULT_CONTENT_TYPE),
+                data.get("details"),
+            )
         if "address" in data:
             data["address"] = sanitize_string(data.get("address"))
         return data

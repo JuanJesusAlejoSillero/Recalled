@@ -4,6 +4,7 @@ import { reviewsAPI } from '../services/api';
 import ReviewForm from '../components/reviews/ReviewForm';
 import { useLanguage } from '../context/LanguageContext';
 import { useNavigationPrompt } from '../hooks/useNavigationPrompt';
+import { getEnabledContentModule } from '../config/contentModules';
 
 function CreateReviewPage() {
   const { id } = useParams(); // for edit mode
@@ -18,6 +19,8 @@ function CreateReviewPage() {
 
   // Pre-select place from URL param
   const preselectedPlace = searchParams.get('place');
+  const requestedContentType = searchParams.get('contentType') || 'place';
+  const isContentTypeLocked = Boolean(id || preselectedPlace);
 
   // Navigation guard - intercept all navigation when dirty
   useNavigationPrompt(isDirty && !isSubmitting.current, t('reviewForm.unsavedChanges'));
@@ -95,7 +98,13 @@ function CreateReviewPage() {
     );
   }
 
-  const formInitial = id ? initialData : (preselectedPlace ? { place_id: preselectedPlace } : null);
+  const initialContentType = getEnabledContentModule(initialData?.place_content_type || requestedContentType).contentType;
+  const formInitial = id
+    ? initialData
+    : {
+      ...(preselectedPlace ? { place_id: preselectedPlace } : {}),
+      place_content_type: initialContentType,
+    };
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -105,6 +114,8 @@ function CreateReviewPage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <ReviewForm
           key={id || 'new'}
+          contentType={initialContentType}
+          allowContentTypeSelection={!isContentTypeLocked}
           onSubmit={handleSubmit}
           initialData={formInitial}
           loading={loading}

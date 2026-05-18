@@ -1,25 +1,31 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FiHome, FiMapPin, FiStar, FiPlus, FiSettings, FiLogOut, FiMenu, FiX, FiGlobe } from 'react-icons/fi';
+import { FiChevronDown, FiGlobe, FiGrid, FiHome, FiLogOut, FiMapPin, FiMenu, FiPlus, FiSettings, FiStar, FiX } from 'react-icons/fi';
 import { useAuth } from '../../hooks/useAuth';
 import { useLanguage } from '../../context/LanguageContext';
 import ThemeToggle from './ThemeToggle';
 import LanguageToggle from './LanguageToggle';
 import VersionBadge from './VersionBadge';
+import { getContentListPath, getEnabledContentModules } from '../../config/contentModules';
 
 function Navbar() {
   const { user, logout } = useAuth();
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [modulesMenuOpen, setModulesMenuOpen] = useState(false);
   const isMapEnabled = window.ENV?.ENABLE_MAP === 'true';
+  const contentModules = getEnabledContentModules().filter((module) => module.contentType !== 'place');
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  const closeMobileMenu = () => setMobileMenuOpen(false);
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+    setModulesMenuOpen(false);
+  };
 
   return (
     <nav className="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
@@ -40,6 +46,39 @@ function Navbar() {
                 <FiMapPin className="w-4 h-4" />
                 <span>{t('nav.places')}</span>
               </Link>
+              {contentModules.length > 0 && (
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setModulesMenuOpen((open) => !open)}
+                    className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    <FiGrid className="w-4 h-4" />
+                    <span>{t('nav.modules')}</span>
+                    <FiChevronDown className={`w-4 h-4 transition-transform ${modulesMenuOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {modulesMenuOpen && (
+                    <div className="absolute left-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-gray-700 dark:bg-gray-800">
+                      {contentModules.map((module) => {
+                        const Icon = module.icon;
+
+                        return (
+                          <Link
+                            key={module.contentType}
+                            to={getContentListPath(module.contentType)}
+                            onClick={() => setModulesMenuOpen(false)}
+                            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary-600 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-primary-400"
+                          >
+                            <Icon className="h-4 w-4" />
+                            <span>{t(module.navKey)}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
               <Link to="/my-reviews" className="flex items-center space-x-1 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 px-3 py-2 rounded-md text-sm font-medium">
                 <FiStar className="w-4 h-4" />
                 <span>{t('nav.myReviews')}</span>
@@ -100,6 +139,21 @@ function Navbar() {
               <FiMapPin className="w-5 h-5" />
               <span>{t('nav.places')}</span>
             </Link>
+            {contentModules.map((module) => {
+              const Icon = module.icon;
+
+              return (
+                <Link
+                  key={module.contentType}
+                  to={getContentListPath(module.contentType)}
+                  onClick={closeMobileMenu}
+                  className="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-base font-medium"
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{t(module.navKey)}</span>
+                </Link>
+              );
+            })}
             <Link to="/my-reviews" onClick={closeMobileMenu} className="flex items-center space-x-3 text-gray-600 dark:text-gray-300 hover:text-primary-600 dark:hover:text-primary-400 hover:bg-gray-50 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-base font-medium">
               <FiStar className="w-5 h-5" />
               <span>{t('nav.myReviews')}</span>

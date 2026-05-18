@@ -1,8 +1,9 @@
 """Places routes."""
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
+from marshmallow import ValidationError
 
 from app import db
 from app.models.place import Place
@@ -10,6 +11,13 @@ from app.models.review import Review
 from app.middleware.auth import admin_required, get_current_user
 from app.middleware.validators import validate_json
 from app.schemas.place_schema import PlaceCreateSchema, PlaceUpdateSchema
+from app.utils.content_details import normalize_content_details
+from app.utils.content_types import (
+    DEFAULT_CONTENT_TYPE,
+    enabled_content_types,
+    is_content_type_enabled,
+    validate_content_type,
+)
 from app.utils.visibility import (
     can_view_place,
     place_visibility_filter,
@@ -18,6 +26,32 @@ from app.utils.visibility import (
 )
 
 places_bp = Blueprint("places", __name__)
+
+
+def _module_not_enabled_response():
+    """Return a standard response for disabled content modules."""
+    return jsonify({"error": "Content module not enabled"}), 404
+
+
+def _parse_requested_content_type(raw_content_type, *, required=False):
+    """Normalize and validate a requested content type."""
+    if raw_content_type is None and not required:
+        return None, None
+
+    try:
+        return validate_content_type(
+            raw_content_type,
+            default=DEFAULT_CONTENT_TYPE if required else None,
+        ), None
+    except ValueError as err:
+        return None, err
+
+
+def _is_place_module_enabled(place):
+    """Check whether the place content module is enabled."""
+    if not place:
+        return False
+    return is_content_type_enabled(current_app.config, place.content_type)
 
 
 def _review_visibility_user_ids(review):
@@ -114,7 +148,7 @@ def _visible_reviews_subquery(current_user_id, is_admin):
 def _place_visible_to_user(place, current_user_id, is_admin):
     """Check if a place is visible to the given user."""
     current_user = get_current_user()
-    return can_view_place(place, current_user)
+    return _is_place_module_enabled(place) and can_view_place(place, current_user)
 
 
 @places_bp.route("", methods=["GET"])
@@ -132,6 +166,18 @@ def list_places():
     category = request.args.get("category")
     search = request.args.get("search")
     sort = request.args.get("sort", "name")  # name, rating, recent
+    requested_content_type, content_type_error = _parse_requested_content_type(
+        request.args.get("content_type")
+    )
+
+    if content_type_error:
+        return jsonify({"error": str(content_type_error)}), 400
+
+    if requested_content_type and not is_content_type_enabled(
+        current_app.config,
+        requested_content_type,
+    ):
+        return _module_not_enabled_response()
 
     current_user_id, is_admin = _user_context()
     vis_sub = _visible_reviews_subquery(current_user_id, is_admin)
@@ -142,6 +188,11 @@ def list_places():
     query = query.filter(
         place_visibility_filter(current_user_id=current_user_id, is_admin=is_admin)
     )
+
+    if requested_content_type:
+        query = query.filter(Place.content_type == requested_content_type)
+    else:
+        query = query.filter(Place.content_type.in_(enabled_content_types(current_app.config)))
 
     if category:
         query = query.filter(Place.category == category)
@@ -177,6 +228,9 @@ def list_places():
 def get_place(place_id):
     """Get a specific place with its reviews."""
     place = Place.query.get_or_404(place_id, description="Place not found")
+    if not _is_place_module_enabled(place):
+        return _module_not_enabled_response()
+
     current_user_id, is_admin = _user_context()
 
     if not _place_visible_to_user(place, current_user_id, is_admin):
@@ -204,6 +258,14 @@ def create_place(validated_data):
     # Ignore any created_by from input; always use the authenticated user
     validated_data.pop("created_by", None)
     visibility_user_ids = validated_data.pop("visibility_user_ids", [])
+    content_type = validate_content_type(
+        validated_data.get("content_type"),
+        default=DEFAULT_CONTENT_TYPE,
+    )
+    if not is_content_type_enabled(current_app.config, content_type):
+        return _module_not_enabled_response()
+
+    validated_data["content_type"] = content_type
 
     place = Place(created_by=user_id, **validated_data)
     db.session.add(place)
@@ -230,6 +292,9 @@ def create_place(validated_data):
 def update_place(place_id, validated_data):
     """Update a place (creator or admin)."""
     place = Place.query.get_or_404(place_id, description="Place not found")
+    if not _is_place_module_enabled(place):
+        return _module_not_enabled_response()
+
     current_user = get_current_user()
 
     if not current_user:
@@ -250,6 +315,23 @@ def update_place(place_id, validated_data):
     )
     final_owner_id = validated_data.get("created_by", place.created_by)
     final_is_private = validated_data.get("is_private", place.is_private)
+    final_content_type = validate_content_type(
+        validated_data.get("content_type"),
+        default=place.content_type,
+    )
+    if not is_content_type_enabled(current_app.config, final_content_type):
+        return _module_not_enabled_response()
+
+    validated_data["content_type"] = final_content_type
+
+    if "details" in validated_data:
+        try:
+            validated_data["details"] = normalize_content_details(
+                final_content_type,
+                validated_data.get("details"),
+            )
+        except ValidationError as err:
+            return jsonify({"error": "Validation error", "details": err.messages}), 400
 
     for key, value in validated_data.items():
         setattr(place, key, value)
@@ -280,6 +362,9 @@ def delete_place(place_id):
     Creator can delete only if the place has no reviews from other users.
     """
     place = Place.query.get_or_404(place_id, description="Place not found")
+    if not _is_place_module_enabled(place):
+        return _module_not_enabled_response()
+
     current_user = get_current_user()
 
     if not current_user:
@@ -313,6 +398,9 @@ def delete_place(place_id):
 def get_place_reviews(place_id):
     """Get all reviews for a specific place (privacy-aware)."""
     place = Place.query.get_or_404(place_id, description="Place not found")
+    if not _is_place_module_enabled(place):
+        return _module_not_enabled_response()
+
     current_user_id, is_admin = _user_context()
 
     if not _place_visible_to_user(place, current_user_id, is_admin):

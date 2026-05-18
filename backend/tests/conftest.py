@@ -1,3 +1,4 @@
+import importlib
 from pathlib import Path
 import sys
 
@@ -25,6 +26,15 @@ def app(tmp_path, monkeypatch):
     monkeypatch.setenv("AUTH_2FA_RATE_LIMIT", "10/minute")
     monkeypatch.setenv("AUTH_REFRESH_RATE_LIMIT", "30/minute")
     monkeypatch.setenv("RATELIMIT_STORAGE_URI", "memory://")
+    monkeypatch.setenv("ENABLE_MOVIES", "true")
+    monkeypatch.setenv("ENABLE_SERIES", "true")
+    monkeypatch.setenv("ENABLE_BOOKS", "true")
+    monkeypatch.setenv("ENABLE_VIDEOGAMES", "true")
+    monkeypatch.setenv("ENABLE_PEOPLE", "true")
+
+    import app.config as config_module
+
+    importlib.reload(config_module)
 
     from app import create_app, db
 

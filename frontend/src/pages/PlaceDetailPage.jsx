@@ -8,8 +8,10 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import ReviewList from '../components/reviews/ReviewList';
 import PlaceForm from '../components/places/PlaceForm';
 import { useLanguage } from '../context/LanguageContext';
+import { getContentListPath, getContentModule, getNewReviewPath, isPlaceContentType } from '../config/contentModules';
+import { getVisibleContentDetails } from '../utils/contentDetails';
 
-function PlaceDetailPage() {
+function PlaceDetailPage({ contentType = 'place' }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -20,6 +22,11 @@ function PlaceDetailPage() {
   const [editing, setEditing] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
   const [orphanedDialog, setOrphanedDialog] = useState(null);
+  const module = getContentModule(place?.content_type || contentType);
+  const ModuleIcon = module.icon;
+  const listPath = getContentListPath(module.contentType);
+  const isPlace = isPlaceContentType(place?.content_type || contentType);
+  const visibleDetails = getVisibleContentDetails(module, place?.details);
 
   useEffect(() => {
     const loadPlace = async () => {
@@ -57,7 +64,7 @@ function PlaceDetailPage() {
     if (!window.confirm(msg)) return;
     try {
       await placesAPI.delete(id);
-      navigate('/places');
+      navigate(listPath);
     } catch (err) {
       const errorMsg = err.response?.data?.error;
       if (err.response?.status === 403) {
@@ -86,7 +93,7 @@ function PlaceDetailPage() {
   const handleOrphanedDelete = async () => {
     try {
       await placesAPI.delete(orphanedDialog.id);
-      navigate('/places');
+      navigate(listPath);
     } catch (err) {
       alert(err.response?.data?.error || t('places.errorDelete'));
     }
@@ -117,6 +124,7 @@ function PlaceDetailPage() {
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         {editing ? (
           <PlaceForm
+            contentType={module.contentType}
             initialData={place}
             onSubmit={handleUpdate}
             loading={editLoading}
@@ -126,7 +134,7 @@ function PlaceDetailPage() {
           <div className="flex items-start justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{place.name}</h1>
-              {place.address && (
+              {isPlace && place.address && (
                 <p className="flex items-center space-x-1 text-gray-500 dark:text-gray-400 mt-1">
                   <FiMapPin className="w-4 h-4" />
                   <span>{place.address}</span>
@@ -149,11 +157,29 @@ function PlaceDetailPage() {
                   <span className="text-gray-400 dark:text-gray-500">{t('places.noRatingsYet')}</span>
                 )}
               </div>
+              {visibleDetails.length > 0 && (
+                <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {visibleDetails.map((detail) => (
+                    <div key={detail.key} className={detail.fullWidth ? 'sm:col-span-2' : ''}>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        {t(detail.labelKey)}
+                      </dt>
+                      <dd className="mt-1 text-sm text-gray-900 dark:text-gray-100">{detail.value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
             </div>
             <div className="flex flex-col items-end space-y-2">
-              {place.category && (
+              {isPlace && place.category && (
                 <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 capitalize">
                   {t(`categories.${place.category}`)}
+                </span>
+              )}
+              {!isPlace && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-3 py-1 text-sm font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
+                  <ModuleIcon className="h-4 w-4" />
+                  <span>{t(module.navKey)}</span>
                 </span>
               )}
               {visibilityMode !== 'public' && (
@@ -163,7 +189,7 @@ function PlaceDetailPage() {
                 </span>
               )}
               <Link
-                to={`/reviews/new?place=${place.id}`}
+                to={getNewReviewPath(place.content_type, place.id)}
                 className="flex items-center space-x-1 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm"
               >
                 <FiPlus className="w-4 h-4" />

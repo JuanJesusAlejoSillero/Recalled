@@ -326,7 +326,7 @@ function MapPage() {
   useEffect(() => {
     const loadPlaces = async () => {
       try {
-        const { data } = await placesAPI.list({ per_page: 1000 });
+        const { data } = await placesAPI.list({ per_page: 1000, content_type: 'place' });
         const withCoords = (data.places || []).filter(
           (place) => place.latitude != null && place.longitude != null
         );

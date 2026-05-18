@@ -4,12 +4,15 @@ import { FiMapPin, FiX, FiChevronLeft, FiChevronRight, FiLock, FiUsers } from 'r
 import StarRating from '../common/StarRating';
 import { formatDate, truncate } from '../../utils/helpers';
 import { useLanguage } from '../../context/LanguageContext';
+import { getContentDetailPath, getContentModule } from '../../config/contentModules';
 
 function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) {
   const { t, language } = useLanguage();
   const locale = language === 'es' ? 'es-ES' : 'en-US';
   const [lightbox, setLightbox] = useState(null);
   const [expanded, setExpanded] = useState(false);
+  const module = getContentModule(review.place_content_type);
+  const PlaceIcon = module.icon;
 
   const isOwner = currentUser && review.user_id === currentUser.id;
   const isAdmin = currentUser?.is_admin;
@@ -32,10 +35,10 @@ function ReviewCard({ review, onDelete, showPlace = true, currentUser = null }) 
         <div className="flex-1">
           {showPlace && review.place_name && (
             <Link
-              to={`/places/${review.place_id}`}
+              to={getContentDetailPath(review.place_content_type, review.place_id)}
               className="flex items-center space-x-1 text-sm text-primary-600 hover:text-primary-700 mb-1"
             >
-              <FiMapPin className="w-3.5 h-3.5" />
+              <PlaceIcon className="w-3.5 h-3.5" />
               <span>{review.place_name}</span>
             </Link>
           )}

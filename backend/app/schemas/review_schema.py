@@ -2,6 +2,8 @@
 
 from marshmallow import Schema, fields, validate, pre_load
 
+from app.utils.content_details import normalize_content_details
+from app.utils.content_types import CONTENT_TYPES, DEFAULT_CONTENT_TYPE
 from app.utils.security import sanitize_string
 
 VALID_CATEGORIES = [
@@ -16,6 +18,7 @@ class ReviewSchema(Schema):
     id = fields.Int(dump_only=True)
     user_id = fields.Int(dump_only=True)
     place_id = fields.Int(required=True)
+    place_content_type = fields.Str(dump_only=True)
     rating = fields.Int(required=True, validate=validate.Range(min=1, max=5))
     title = fields.Str(allow_none=True, validate=validate.Length(max=200))
     comment = fields.Str(allow_none=True)
@@ -32,6 +35,11 @@ def _place_inline_fields():
     """Common inline place fields for create/update schemas."""
     return {
         "place_name": fields.Str(load_default=None, validate=validate.Length(min=1, max=200)),
+        "place_content_type": fields.Str(
+            load_default=DEFAULT_CONTENT_TYPE,
+            validate=validate.OneOf(CONTENT_TYPES),
+        ),
+        "place_details": fields.Dict(load_default=dict),
         "place_address": fields.Str(allow_none=True, load_default=None),
         "place_category": fields.Str(allow_none=True, load_default=None, validate=validate.OneOf(VALID_CATEGORIES)),
         "place_latitude": fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90)),
@@ -65,6 +73,11 @@ class ReviewCreateSchema(Schema):
 
     # Inline place fields
     place_name = fields.Str(load_default=None, validate=validate.Length(min=1, max=200))
+    place_content_type = fields.Str(
+        load_default=DEFAULT_CONTENT_TYPE,
+        validate=validate.OneOf(CONTENT_TYPES),
+    )
+    place_details = fields.Dict(load_default=dict)
     place_address = fields.Str(allow_none=True, load_default=None)
     place_category = fields.Str(allow_none=True, load_default=None, validate=validate.OneOf(VALID_CATEGORIES))
     place_latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
@@ -80,6 +93,11 @@ class ReviewCreateSchema(Schema):
         data["title"] = sanitize_string(data.get("title"))
         data["comment"] = sanitize_string(data.get("comment"))
         _sanitize_place_fields(data)
+        data["place_details"] = normalize_content_details(
+            data.get("place_content_type", DEFAULT_CONTENT_TYPE),
+            data.get("place_details"),
+            field_name="place_details",
+        )
         if data.get("visit_date") == "":
             data["visit_date"] = None
         return data
@@ -100,6 +118,8 @@ class ReviewUpdateSchema(Schema):
 
     # Inline place fields
     place_name = fields.Str(load_default=None, validate=validate.Length(min=1, max=200))
+    place_content_type = fields.Str(validate=validate.OneOf(CONTENT_TYPES))
+    place_details = fields.Dict()
     place_address = fields.Str(allow_none=True, load_default=None)
     place_category = fields.Str(allow_none=True, load_default=None, validate=validate.OneOf(VALID_CATEGORIES))
     place_latitude = fields.Float(allow_none=True, load_default=None, validate=validate.Range(min=-90, max=90))
@@ -116,6 +136,12 @@ class ReviewUpdateSchema(Schema):
         if "comment" in data:
             data["comment"] = sanitize_string(data.get("comment"))
         _sanitize_place_fields(data)
+        if "place_details" in data:
+            data["place_details"] = normalize_content_details(
+                data.get("place_content_type", DEFAULT_CONTENT_TYPE),
+                data.get("place_details"),
+                field_name="place_details",
+            )
         if data.get("visit_date") == "":
             data["visit_date"] = None
         return data

@@ -78,6 +78,7 @@ class Review(db.Model):
             "id": self.id,
             "user_id": self.user_id,
             "place_id": self.place_id,
+            "place_content_type": self.place.content_type if self.place else None,
             "rating": self.rating,
             "title": self.title,
             "comment": self.comment,

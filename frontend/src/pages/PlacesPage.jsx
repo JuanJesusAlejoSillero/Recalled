@@ -5,15 +5,17 @@ import PlaceList from '../components/places/PlaceList';
 import PlaceForm from '../components/places/PlaceForm';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../context/LanguageContext';
+import { getContentModule } from '../config/contentModules';
 
 const CATEGORY_KEYS = [
   'restaurant', 'hotel', 'museum', 'park', 'beach',
   'monument', 'shopping', 'nightlife', 'cafe', 'bar', 'other',
 ];
 
-function PlacesPage() {
+function PlacesPage({ contentType = 'place' }) {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const module = getContentModule(contentType);
   const [places, setPlaces] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -39,9 +41,9 @@ function PlacesPage() {
   const loadPlaces = async () => {
     setLoading(true);
     try {
-      const params = { page, per_page: 12 };
+      const params = { page, per_page: 12, content_type: module.contentType };
       if (search) params.search = search;
-      if (category) params.category = category;
+      if (module.hasCategory && category) params.category = category;
 
       const { data } = await placesAPI.list(params);
       setPlaces(data.places || []);
@@ -53,7 +55,7 @@ function PlacesPage() {
     }
   };
 
-  useEffect(() => { loadPlaces(); }, [page, category]);
+  useEffect(() => { loadPlaces(); }, [page, category, contentType]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -77,19 +79,19 @@ function PlacesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('places.title')}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t(module.titleKey)}</h1>
         <button
           onClick={toggleForm}
           className="flex items-center space-x-2 bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 text-sm font-medium"
         >
           <FiPlus className="w-4 h-4" />
-          <span>{showForm ? t('places.cancel') : t('places.newPlace')}</span>
+          <span>{showForm ? t('places.cancel') : t(module.newButtonKey)}</span>
         </button>
       </div>
 
       {showForm && (
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <PlaceForm onSubmit={handleCreatePlace} loading={formLoading} onCancel={() => { setFormDirty(false); setShowForm(false); }} onDirtyChange={handleFormDirtyChange} />
+          <PlaceForm contentType={module.contentType} onSubmit={handleCreatePlace} loading={formLoading} onCancel={() => { setFormDirty(false); setShowForm(false); }} onDirtyChange={handleFormDirtyChange} />
         </div>
       )}
 
@@ -102,22 +104,24 @@ function PlacesPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder={t('places.searchPlaceholder')}
+              placeholder={t(module.searchPlaceholderKey)}
               className="w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
             />
           </div>
           <button type="submit" className="ml-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600">{t('places.search')}</button>
         </form>
-        <select
-          value={category}
-          onChange={(e) => { setCategory(e.target.value); setPage(1); }}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
-        >
-          <option value="">{t('places.allCategories')}</option>
-          {CATEGORY_KEYS.map((key) => (
-            <option key={key} value={key}>{t(`categories.${key}`)}</option>
-          ))}
-        </select>
+        {module.hasCategory && (
+          <select
+            value={category}
+            onChange={(e) => { setCategory(e.target.value); setPage(1); }}
+            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+          >
+            <option value="">{t('places.allCategories')}</option>
+            {CATEGORY_KEYS.map((key) => (
+              <option key={key} value={key}>{t(`categories.${key}`)}</option>
+            ))}
+          </select>
+        )}
       </div>
 
       {loading ? (
@@ -126,7 +130,7 @@ function PlacesPage() {
         </div>
       ) : (
         <>
-          <PlaceList places={places} />
+          <PlaceList places={places} emptyMessage={t(module.emptyStateKey)} />
           {totalPages > 1 && (
             <div className="flex justify-center space-x-2 pt-4">
               <button

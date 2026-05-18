@@ -12,8 +12,10 @@ import CreateReviewPage from './pages/CreateReviewPage';
 import AdminPage from './pages/AdminPage';
 import SettingsPage from './pages/SettingsPage';
 import MapPage from './pages/MapPage';
+import { getEnabledContentModules } from './config/contentModules';
 
 const isMapEnabled = window.ENV?.ENABLE_MAP === 'true';
+const extraContentModules = getEnabledContentModules().filter((module) => module.contentType !== 'place');
 
 function App() {
   const { user, loading } = useAuth();
@@ -33,8 +35,22 @@ function App() {
         <Routes>
           <Route path="/login" element={user ? <Navigate to="/" /> : <LoginPage />} />
           <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-          <Route path="/places" element={<ProtectedRoute><PlacesPage /></ProtectedRoute>} />
-          <Route path="/places/:id" element={<ProtectedRoute><PlaceDetailPage /></ProtectedRoute>} />
+          <Route path="/places" element={<ProtectedRoute><PlacesPage contentType="place" /></ProtectedRoute>} />
+          <Route path="/places/:id" element={<ProtectedRoute><PlaceDetailPage contentType="place" /></ProtectedRoute>} />
+          {extraContentModules.map((module) => (
+            <Route
+              key={module.contentType}
+              path={`/${module.routeSegment}`}
+              element={<ProtectedRoute><PlacesPage contentType={module.contentType} /></ProtectedRoute>}
+            />
+          ))}
+          {extraContentModules.map((module) => (
+            <Route
+              key={`${module.contentType}-detail`}
+              path={`/${module.routeSegment}/:id`}
+              element={<ProtectedRoute><PlaceDetailPage contentType={module.contentType} /></ProtectedRoute>}
+            />
+          ))}
           <Route path="/my-reviews" element={<ProtectedRoute><MyReviewsPage /></ProtectedRoute>} />
           <Route path="/reviews/new" element={<ProtectedRoute><CreateReviewPage /></ProtectedRoute>} />
           <Route path="/reviews/:id/edit" element={<ProtectedRoute><CreateReviewPage /></ProtectedRoute>} />

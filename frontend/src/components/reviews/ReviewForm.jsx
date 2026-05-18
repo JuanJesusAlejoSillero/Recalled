@@ -9,6 +9,12 @@ import VisibilitySelector from '../common/VisibilitySelector';
 import { placesAPI } from '../../services/api';
 import { useLanguage } from '../../context/LanguageContext';
 import { getThumbnailUrl } from '../../utils/helpers';
+import { getEnabledContentModule, getEnabledContentModules } from '../../config/contentModules';
+import {
+  buildContentDetailsPayload,
+  contentDetailsStateSignature,
+  createContentDetailsState,
+} from '../../utils/contentDetails';
 
 const CATEGORY_KEYS = [
   'restaurant', 'hotel', 'museum', 'park', 'beach',
@@ -36,8 +42,22 @@ function mergeVisibilityUsers(...groups) {
   }).map((user) => ({ id: Number(user.id), username: String(user.username).trim() }));
 }
 
-function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChange }) {
+function ReviewForm({
+  onSubmit,
+  initialData = null,
+  contentType = 'place',
+  allowContentTypeSelection = false,
+  loading = false,
+  onDirtyChange,
+}) {
   const { t } = useLanguage();
+  const initialContentType = getEnabledContentModule(initialData?.place_content_type || contentType).contentType;
+  const [selectedContentType, setSelectedContentType] = useState(initialContentType);
+  const module = getEnabledContentModule(selectedContentType);
+  const enabledModules = getEnabledContentModules();
+  const supportsLocation = module.hasLocation;
+  const supportsCategory = module.hasCategory;
+  const detailFields = module.detailFields || [];
   const isEditMode = Boolean(initialData?.id);
   const [rating, setRating] = useState(initialData?.rating || 0);
   const [photos, setPhotos] = useState([]);
@@ -47,6 +67,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
   const [ratingError, setRatingError] = useState('');
   const [isNewPlace, setIsNewPlace] = useState(false);
   const [newPlaceName, setNewPlaceName] = useState('');
+  const [newPlaceDetails, setNewPlaceDetails] = useState(() => createContentDetailsState(module));
   const [newPlaceAddress, setNewPlaceAddress] = useState('');
   const [newPlaceCategory, setNewPlaceCategory] = useState('');
   const [newPlaceLatitude, setNewPlaceLatitude] = useState('');
@@ -127,9 +148,14 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
 
   // Capture initial snapshot after mount
   useEffect(() => {
+    setSelectedContentType(initialContentType);
+  }, [initialContentType]);
+
+  useEffect(() => {
     if (!hasMounted.current) {
       hasMounted.current = true;
       initialSnapshot.current = {
+        selectedContentType: initialContentType,
         place_id: preselectedPlaceId,
         title: initialData?.title || '',
         comment: initialData?.comment || '',
@@ -138,6 +164,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         isPrivate: initialData?.is_private || false,
         isNewPlace: false,
         newPlaceName: '',
+        newPlaceDetailsSignature: contentDetailsStateSignature(module, createContentDetailsState(module)),
         newPlaceAddress: '',
         newPlaceCategory: '',
         newPlaceLatitude: '',
@@ -156,6 +183,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     if (!onDirtyChange || !initialSnapshot.current) return;
     const snap = initialSnapshot.current;
     const isDirty =
+      selectedContentType !== snap.selectedContentType ||
       watchedFields.title !== snap.title ||
       watchedFields.comment !== snap.comment ||
       watchedFields.visit_date !== snap.visit_date ||
@@ -164,6 +192,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
       isPrivate !== snap.isPrivate ||
       isNewPlace !== snap.isNewPlace ||
       newPlaceName !== snap.newPlaceName ||
+      contentDetailsStateSignature(module, newPlaceDetails) !== snap.newPlaceDetailsSignature ||
       newPlaceAddress !== snap.newPlaceAddress ||
       newPlaceCategory !== snap.newPlaceCategory ||
       String(newPlaceLatitude) !== String(snap.newPlaceLatitude) ||
@@ -175,11 +204,13 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
       photosToDelete.length !== snap.photosToDeleteCount;
     onDirtyChange(isDirty);
   }, [
+    selectedContentType,
     watchedFields,
     rating,
     isPrivate,
     isNewPlace,
     newPlaceName,
+    newPlaceDetails,
     newPlaceAddress,
     newPlaceCategory,
     newPlaceLatitude,
@@ -192,11 +223,29 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
     onDirtyChange,
   ]);
 
+  const handleContentTypeChange = (event) => {
+    const nextContentType = event.target.value;
+    setSelectedContentType(nextContentType);
+    setPlaceError('');
+    setValue('place_id', '');
+    setNewPlaceName('');
+    setNewPlaceDetails(createContentDetailsState(nextContentType));
+    setNewPlaceAddress('');
+    setNewPlaceCategory('');
+    setNewPlaceLatitude('');
+    setNewPlaceLongitude('');
+    setNewPlaceIsPrivate(false);
+    setNewPlaceVisibilityUserIds([]);
+    setNewPlaceVisibilityUsers([]);
+    setGeocodeResults([]);
+    setGeocodeSearched(false);
+  };
+
   useEffect(() => {
-    placesAPI.list({ per_page: 100, sort: 'name' }).then(({ data }) => {
+    placesAPI.list({ per_page: 100, sort: 'name', content_type: module.contentType }).then(({ data }) => {
       setPlaces(data.places || []);
     });
-  }, []);
+  }, [module.contentType]);
 
   useEffect(() => {
     if (places.length > 0 && preselectedPlaceId) {
@@ -278,10 +327,12 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
       const { place_id: _, ...rest } = data;
       const placeFields = {
         place_name: newPlaceName.trim(),
-        place_address: newPlaceAddress.trim() || null,
-        place_category: newPlaceCategory || null,
-        place_latitude: newPlaceLatitude ? parseFloat(newPlaceLatitude) : null,
-        place_longitude: newPlaceLongitude ? parseFloat(newPlaceLongitude) : null,
+        place_content_type: module.contentType,
+        place_details: buildContentDetailsPayload(module, newPlaceDetails),
+        place_address: supportsLocation ? newPlaceAddress.trim() || null : null,
+        place_category: supportsCategory ? newPlaceCategory || null : null,
+        place_latitude: supportsLocation && newPlaceLatitude ? parseFloat(newPlaceLatitude) : null,
+        place_longitude: supportsLocation && newPlaceLongitude ? parseFloat(newPlaceLongitude) : null,
         place_is_private: newPlaceIsPrivate,
         place_visibility_user_ids: newPlaceIsPrivate ? newPlaceVisibilityUserIds : [],
       };
@@ -398,6 +449,37 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           {t('reviewForm.place')} <span className="text-red-500">*</span>
         </label>
+        {allowContentTypeSelection && (
+          <div className="mb-3">
+            <span className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+              {t('reviewForm.contentType')}
+            </span>
+            <div className="flex flex-wrap gap-2" role="tablist" aria-label={t('reviewForm.contentType')}>
+              {enabledModules.map((contentModule) => {
+                const isActive = selectedContentType === contentModule.contentType;
+                const ModuleIcon = contentModule.icon;
+
+                return (
+                  <button
+                    key={contentModule.contentType}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={() => handleContentTypeChange({ target: { value: contentModule.contentType } })}
+                    className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
+                      isActive
+                        ? 'border-primary-500 bg-primary-100 text-primary-700 dark:border-primary-400 dark:bg-primary-900/30 dark:text-primary-300'
+                        : 'border-gray-300 bg-white text-gray-600 hover:border-primary-300 hover:text-primary-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-primary-500 dark:hover:text-primary-300'
+                    }`}
+                  >
+                    <ModuleIcon className="h-4 w-4" />
+                    <span>{t(contentModule.titleKey)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className="flex items-center space-x-3 mb-2">
           <button
             type="button"
@@ -426,130 +508,166 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
           <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-700/50 border border-gray-200 dark:border-gray-600 rounded-lg">
             <div>
               <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                {t('placeForm.name')} <span className="text-red-500">*</span>
+                {t(module.formNameLabelKey)} <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 value={newPlaceName}
                 onChange={(e) => setNewPlaceName(e.target.value)}
                 className={inputClass}
-                placeholder={t('reviewForm.newPlacePlaceholder')}
+                placeholder={t(module.formNamePlaceholderKey)}
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                {t('placeForm.address')}
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newPlaceAddress}
-                  onChange={(e) => setNewPlaceAddress(e.target.value)}
-                  className={`flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
-                  placeholder={t('placeForm.addressPlaceholder')}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGeocode(); } }}
-                />
-                <button
-                  type="button"
-                  onClick={handleGeocode}
-                  disabled={geocoding}
-                  className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-1 shrink-0"
-                  title={t('placeForm.searchAddress')}
-                >
-                  <FiSearch className="w-4 h-4" />
-                  <span className="hidden sm:inline">{geocoding ? t('placeForm.searching') : t('placeForm.searchAddress')}</span>
-                </button>
-              </div>
-              {geocodeResults.length > 0 && (
-                <ul className="mt-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 shadow-lg max-h-48 overflow-y-auto">
-                  {geocodeResults.map((result) => (
-                    <li
-                      key={result.place_id}
-                      onClick={() => selectGeocodeResult(result)}
-                      className="px-3 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-gray-600 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-b-0"
-                    >
-                      {result.display_name}
-                    </li>
+            {detailFields.length > 0 && (
+              <div className="space-y-3 border-t border-gray-200 pt-3 dark:border-gray-600">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300">
+                  {t('contentDetails.section')}
+                </h3>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                  {detailFields.map((field) => (
+                    <div key={field.key} className={field.fullWidth ? 'md:col-span-2' : ''}>
+                      <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                        {t(`contentDetails.fields.${field.key}`)}
+                      </label>
+                      <input
+                        type={field.type === 'number' ? 'number' : 'text'}
+                        step={field.type === 'number' ? '1' : undefined}
+                        inputMode={field.type === 'number' ? 'numeric' : undefined}
+                        value={newPlaceDetails[field.key] ?? ''}
+                        onChange={(event) => setNewPlaceDetails((current) => ({
+                          ...current,
+                          [field.key]: event.target.value,
+                        }))}
+                        className={inputClass}
+                        placeholder={t(`contentDetails.placeholders.${field.key}`)}
+                      />
+                    </div>
                   ))}
-                </ul>
-              )}
-              {geocodeSearched && !geocoding && geocodeResults.length === 0 && (
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('placeForm.noResults')}</p>
-              )}
-              {(geocodeResults.length > 0 || geocodeSearched) && (
-                <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-                  © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">OpenStreetMap</a> contributors
-                </p>
-              )}
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                {t('placeForm.category')}
-              </label>
-              <select
-                value={newPlaceCategory}
-                onChange={(e) => setNewPlaceCategory(e.target.value)}
-                className={inputClass}
-              >
-                <option value="">{t('placeForm.noCategory')}</option>
-                {CATEGORY_KEYS.map((key) => (
-                  <option key={key} value={key}>{t(`categories.${key}`)}</option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+                </div>
+              </div>
+            )}
+            {supportsLocation && (
               <div>
                 <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  {t('placeForm.latitude')}
+                  {t('placeForm.address')}
                 </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={newPlaceLatitude}
-                  onChange={(e) => setNewPlaceLatitude(e.target.value)}
-                  className={inputClass}
-                  placeholder={t('placeForm.latitudePlaceholder')}
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
-                  {t('placeForm.longitude')}
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  value={newPlaceLongitude}
-                  onChange={(e) => setNewPlaceLongitude(e.target.value)}
-                  className={inputClass}
-                  placeholder={t('placeForm.longitudePlaceholder')}
-                />
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-                  {t('placeForm.location')}
-                </label>
-                {hasInlineLocation && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newPlaceAddress}
+                    onChange={(e) => setNewPlaceAddress(e.target.value)}
+                    className={`flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white`}
+                    placeholder={t('placeForm.addressPlaceholder')}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleGeocode(); } }}
+                  />
                   <button
                     type="button"
-                    onClick={clearLocation}
-                    className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                    onClick={handleGeocode}
+                    disabled={geocoding}
+                    className="px-3 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 flex items-center gap-1 shrink-0"
+                    title={t('placeForm.searchAddress')}
                   >
-                    {t('placeForm.clearLocation')}
+                    <FiSearch className="w-4 h-4" />
+                    <span className="hidden sm:inline">{geocoding ? t('placeForm.searching') : t('placeForm.searchAddress')}</span>
                   </button>
+                </div>
+                {geocodeResults.length > 0 && (
+                  <ul className="mt-1 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 shadow-lg max-h-48 overflow-y-auto">
+                    {geocodeResults.map((result) => (
+                      <li
+                        key={result.place_id}
+                        onClick={() => selectGeocodeResult(result)}
+                        className="px-3 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-primary-50 dark:hover:bg-gray-600 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-b-0"
+                      >
+                        {result.display_name}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {geocodeSearched && !geocoding && geocodeResults.length === 0 && (
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{t('placeForm.noResults')}</p>
+                )}
+                {(geocodeResults.length > 0 || geocodeSearched) && (
+                  <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                    © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300">OpenStreetMap</a> contributors
+                  </p>
                 )}
               </div>
-              <LocationPickerMap
-                latitude={newPlaceLatitude}
-                longitude={newPlaceLongitude}
-                onChange={handleLocationChange}
-                markerLabel={newPlaceName || t('reviewForm.newPlace')}
-                hint={t('placeForm.locationHint')}
-                emptyMessage={t('placeForm.locationMissing')}
-                heightClassName="h-64"
-              />
-            </div>
+            )}
+            {supportsCategory && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                  {t('placeForm.category')}
+                </label>
+                <select
+                  value={newPlaceCategory}
+                  onChange={(e) => setNewPlaceCategory(e.target.value)}
+                  className={inputClass}
+                >
+                  <option value="">{t('placeForm.noCategory')}</option>
+                  {CATEGORY_KEYS.map((key) => (
+                    <option key={key} value={key}>{t(`categories.${key}`)}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {supportsLocation && (
+              <>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      {t('placeForm.latitude')}
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={newPlaceLatitude}
+                      onChange={(e) => setNewPlaceLatitude(e.target.value)}
+                      className={inputClass}
+                      placeholder={t('placeForm.latitudePlaceholder')}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                      {t('placeForm.longitude')}
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      value={newPlaceLongitude}
+                      onChange={(e) => setNewPlaceLongitude(e.target.value)}
+                      className={inputClass}
+                      placeholder={t('placeForm.longitudePlaceholder')}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                      {t('placeForm.location')}
+                    </label>
+                    {hasInlineLocation && (
+                      <button
+                        type="button"
+                        onClick={clearLocation}
+                        className="text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300"
+                      >
+                        {t('placeForm.clearLocation')}
+                      </button>
+                    )}
+                  </div>
+                  <LocationPickerMap
+                    latitude={newPlaceLatitude}
+                    longitude={newPlaceLongitude}
+                    onChange={handleLocationChange}
+                    markerLabel={newPlaceName || t(module.newButtonKey)}
+                    hint={t('placeForm.locationHint')}
+                    emptyMessage={t('placeForm.locationMissing')}
+                    heightClassName="h-64"
+                  />
+                </div>
+              </>
+            )}
             <div className="flex items-center space-x-3">
               <input
                 type="checkbox"
@@ -738,7 +856,7 @@ function ReviewForm({ onSubmit, initialData = null, loading = false, onDirtyChan
         disabled={loading}
         className="w-full py-2.5 px-4 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
       >
-        {loading ? t('reviewForm.saving') : initialData ? t('reviewForm.update') : t('reviewForm.create')}
+        {loading ? t('reviewForm.saving') : isEditMode ? t('reviewForm.update') : t('reviewForm.create')}
       </button>
 
       <ConfirmDialog

@@ -23,7 +23,13 @@ def create_app():
 
     # Load configuration
     from app.config import Config
+    from app.utils.content_types import enabled_content_types
+
     app.config.from_object(Config)
+    app.config["CONTENT_MODULE_FLAGS"] = dict(
+        app.config.get("CONTENT_MODULE_FLAGS", {})
+    )
+    app.config["ENABLED_CONTENT_TYPES"] = enabled_content_types(app.config)
 
     app.wsgi_app = ProxyFix(
         app.wsgi_app,

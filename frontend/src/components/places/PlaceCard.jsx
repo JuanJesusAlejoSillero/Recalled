@@ -2,9 +2,13 @@ import { Link } from 'react-router-dom';
 import { FiLock, FiMapPin, FiUser, FiUsers } from 'react-icons/fi';
 import StarRating from '../common/StarRating';
 import { useLanguage } from '../../context/LanguageContext';
+import { getContentDetailPath, getContentModule, isPlaceContentType } from '../../config/contentModules';
 
 function PlaceCard({ place }) {
   const { t } = useLanguage();
+  const module = getContentModule(place.content_type);
+  const ModuleIcon = module.icon;
+  const isPlace = isPlaceContentType(place.content_type);
   const visibilityMode = place.visibility_mode || (place.is_private ? 'private' : 'public');
   const VisibilityIcon = visibilityMode === 'shared' ? FiUsers : FiLock;
   const visibilityBadgeClass = visibilityMode === 'shared'
@@ -13,13 +17,13 @@ function PlaceCard({ place }) {
 
   return (
     <Link
-      to={`/places/${place.id}`}
+      to={getContentDetailPath(place.content_type, place.id)}
       className="block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-shadow"
     >
       <div className="flex items-start justify-between">
         <div className="min-w-0 flex-1">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{place.name}</h3>
-          {place.address && (
+          {isPlace && place.address && (
             <p className="mt-1 flex items-start gap-1 text-sm text-gray-500 dark:text-gray-400">
               <FiMapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 break-words">{place.address}</span>
@@ -33,9 +37,15 @@ function PlaceCard({ place }) {
           )}
         </div>
         <div className="flex flex-col items-end gap-2">
-          {place.category && (
+          {isPlace && place.category && (
             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-400 capitalize">
               {t(`categories.${place.category}`)}
+            </span>
+          )}
+          {!isPlace && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-primary-100 px-2.5 py-0.5 text-xs font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-400">
+              <ModuleIcon className="h-3 w-3" />
+              <span>{t(module.navKey)}</span>
             </span>
           )}
           {visibilityMode !== 'public' && (

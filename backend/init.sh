@@ -109,6 +109,39 @@ with app.app_context():
             ))
             conn.commit()
         print("✓ created_by column added to places table")
+    if "content_type" not in place_columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE places ADD COLUMN content_type VARCHAR(20) NOT NULL DEFAULT 'place'"
+            ))
+            conn.execute(sqlalchemy.text(
+                "CREATE INDEX IF NOT EXISTS ix_places_content_type ON places (content_type)"
+            ))
+            conn.commit()
+        print("✓ content_type column added to places table")
+    else:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "UPDATE places SET content_type = 'place' WHERE content_type IS NULL OR TRIM(content_type) = ''"
+            ))
+            conn.execute(sqlalchemy.text(
+                "CREATE INDEX IF NOT EXISTS ix_places_content_type ON places (content_type)"
+            ))
+            conn.commit()
+
+    if "details" not in place_columns:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "ALTER TABLE places ADD COLUMN details TEXT NOT NULL DEFAULT '{}'"
+            ))
+            conn.commit()
+        print("✓ details column added to places table")
+    else:
+        with db.engine.connect() as conn:
+            conn.execute(sqlalchemy.text(
+                "UPDATE places SET details = '{}' WHERE details IS NULL OR TRIM(details) = ''"
+            ))
+            conn.commit()
 
     # Add totp_last_counter to users table (replay prevention)
     user_columns = [col["name"] for col in inspector.get_columns("users")]

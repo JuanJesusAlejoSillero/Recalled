@@ -3,6 +3,7 @@
 from datetime import datetime, timezone
 
 from app import db
+from app.utils.content_types import DEFAULT_CONTENT_TYPE
 
 
 place_visible_users = db.Table(
@@ -28,7 +29,14 @@ class Place(db.Model):
     __tablename__ = "places"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    content_type = db.Column(
+        db.String(20),
+        nullable=False,
+        default=DEFAULT_CONTENT_TYPE,
+        index=True,
+    )
     name = db.Column(db.String(200), nullable=False)
+    details = db.Column(db.JSON, nullable=False, default=dict)
     address = db.Column(db.Text)
     latitude = db.Column(db.Float)
     longitude = db.Column(db.Float)
@@ -111,7 +119,9 @@ class Place(db.Model):
 
         data = {
             "id": self.id,
+            "content_type": self.content_type,
             "name": self.name,
+            "details": self.details or {},
             "address": self.address,
             "latitude": self.latitude,
             "longitude": self.longitude,

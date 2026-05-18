@@ -46,6 +46,20 @@ class Config:
         value = os.environ.get(name, default)
         return [item.strip() for item in value.split(",") if item.strip()]
 
+    CONTENT_MODULE_FLAGS = {
+        "place": True,
+        "movie": _get_bool.__func__("ENABLE_MOVIES", True),
+        "series": _get_bool.__func__("ENABLE_SERIES", True),
+        "book": _get_bool.__func__("ENABLE_BOOKS", True),
+        "videogame": _get_bool.__func__("ENABLE_VIDEOGAMES", True),
+        "person": _get_bool.__func__("ENABLE_PEOPLE", True),
+    }
+    ENABLED_CONTENT_TYPES = tuple(
+        content_type
+        for content_type, is_enabled in CONTENT_MODULE_FLAGS.items()
+        if is_enabled
+    )
+
     # Flask
     SECRET_KEY = os.environ.get("SECRET_KEY")
     if not SECRET_KEY:

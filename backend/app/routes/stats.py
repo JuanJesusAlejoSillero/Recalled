@@ -1,6 +1,6 @@
 """Statistics routes."""
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required
 from sqlalchemy import func
 
@@ -10,6 +10,7 @@ from app.models.user import User
 from app.models.review import Review
 from app.models.place import Place
 from app.models.photo import ReviewPhoto
+from app.utils.content_types import enabled_content_types, is_content_type_enabled, validate_content_type
 from app.utils.visibility import review_visibility_filter
 
 stats_bp = Blueprint("stats", __name__)
@@ -26,29 +27,38 @@ def user_stats(user_id):
         return jsonify({"error": "Permission denied"}), 403
 
     user = db.get_or_404(User, user_id, description="User not found")
+    enabled_types = enabled_content_types(current_app.config)
 
-    total_reviews = Review.query.filter_by(user_id=user_id).count()
+    total_reviews = (
+        Review.query.join(Place, Review.place_id == Place.id)
+        .filter(Review.user_id == user_id, Place.content_type.in_(enabled_types))
+        .count()
+    )
     total_photos = (
         db.session.query(func.count(ReviewPhoto.id))
         .join(Review, ReviewPhoto.review_id == Review.id)
-        .filter(Review.user_id == user_id)
+        .join(Place, Review.place_id == Place.id)
+        .filter(Review.user_id == user_id, Place.content_type.in_(enabled_types))
         .scalar()
     )
     avg_rating = (
         db.session.query(func.avg(Review.rating))
-        .filter(Review.user_id == user_id)
+        .join(Place, Review.place_id == Place.id)
+        .filter(Review.user_id == user_id, Place.content_type.in_(enabled_types))
         .scalar()
     )
-    places_visited = (
+    reviewed_items = (
         db.session.query(func.count(func.distinct(Review.place_id)))
-        .filter(Review.user_id == user_id)
+        .join(Place, Review.place_id == Place.id)
+        .filter(Review.user_id == user_id, Place.content_type.in_(enabled_types))
         .scalar()
     )
 
     # Rating distribution
     rating_dist = dict(
         db.session.query(Review.rating, func.count(Review.id))
-        .filter(Review.user_id == user_id)
+        .join(Place, Review.place_id == Place.id)
+        .filter(Review.user_id == user_id, Place.content_type.in_(enabled_types))
         .group_by(Review.rating)
         .all()
     )
@@ -59,7 +69,8 @@ def user_stats(user_id):
             "total_reviews": total_reviews,
             "total_photos": total_photos or 0,
             "avg_rating": round(avg_rating, 1) if avg_rating else None,
-            "places_visited": places_visited or 0,
+            "places_visited": reviewed_items or 0,
+            "reviewed_items": reviewed_items or 0,
             "rating_distribution": {i: rating_dist.get(i, 0) for i in range(1, 6)},
         },
     }), 200
@@ -72,6 +83,22 @@ def top_places():
     current_user = get_current_user()
     current_user_id = current_user.id if current_user else None
     is_admin = current_user.is_admin if current_user else False
+    enabled_types = enabled_content_types(current_app.config)
+    requested_content_type = request.args.get("content_type")
+
+    if requested_content_type is not None:
+        try:
+            requested_content_type = validate_content_type(
+                requested_content_type,
+                default=None,
+            )
+        except ValueError as err:
+            return jsonify({"error": str(err)}), 400
+
+        if not is_content_type_enabled(current_app.config, requested_content_type):
+            return jsonify({"error": "Content module not enabled"}), 404
+
+        enabled_types = (requested_content_type,)
 
     results = (
         db.session.query(
@@ -80,7 +107,10 @@ def top_places():
             func.count(Review.id).label("review_count"),
         )
         .join(Review, Place.id == Review.place_id)
-        .filter(review_visibility_filter(current_user=current_user))
+        .filter(
+            Place.content_type.in_(enabled_types),
+            review_visibility_filter(current_user=current_user),
+        )
         .group_by(Place.id)
         .having(func.count(Review.id) >= 1)
         .order_by(func.avg(Review.rating).desc())

@@ -1,6 +1,6 @@
 """Reviews routes."""
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app import db
@@ -10,6 +10,12 @@ from app.models.photo import ReviewPhoto
 from app.middleware.auth import get_current_user
 from app.middleware.validators import validate_json
 from app.schemas.review_schema import ReviewCreateSchema, ReviewUpdateSchema
+from app.utils.content_types import (
+    DEFAULT_CONTENT_TYPE,
+    enabled_content_types,
+    is_content_type_enabled,
+    validate_content_type,
+)
 from app.utils.file_handler import save_photo, delete_photo
 from app.utils.visibility import (
     can_view_place,
@@ -23,15 +29,37 @@ reviews_bp = Blueprint("reviews", __name__)
 MAX_REVIEW_PHOTOS = 5
 
 
+def _module_not_enabled_response():
+    """Return a standard response for disabled content modules."""
+    return jsonify({"error": "Content module not enabled"}), 404
+
+
+def _is_place_module_enabled(place):
+    """Check whether the place content module is enabled."""
+    if not place:
+        return False
+    return is_content_type_enabled(current_app.config, place.content_type)
+
+
+def _is_review_module_enabled(review):
+    """Check whether a review belongs to an enabled content module."""
+    if not review:
+        return False
+    return _is_place_module_enabled(review.place)
+
+
 def _visible_reviews_query(current_user):
     """Build a query that only returns reviews visible to the current user."""
-    return Review.query.filter(review_visibility_filter(current_user=current_user))
+    return Review.query.join(Place, Review.place_id == Place.id).filter(
+        Place.content_type.in_(enabled_content_types(current_app.config)),
+        review_visibility_filter(current_user=current_user),
+    )
 
 
 def _get_accessible_place(place_id, current_user):
     """Return a place only when the current user is allowed to attach reviews to it."""
     place = db.session.get(Place, place_id)
-    if not place or not can_view_place(place, current_user):
+    if not place or not _is_place_module_enabled(place) or not can_view_place(place, current_user):
         return None
     return place
 
@@ -201,6 +229,8 @@ def list_reviews():
 def get_review(review_id):
     """Get a specific review."""
     review = db.get_or_404(Review, review_id, description="Review not found")
+    if not _is_review_module_enabled(review):
+        return _module_not_enabled_response()
 
     current_user = get_current_user()
     if not can_view_review(review, current_user):
@@ -214,6 +244,8 @@ def _extract_place_fields(validated_data):
     place_fields = {}
     for suffix in (
         "name",
+        "content_type",
+        "details",
         "address",
         "category",
         "latitude",
@@ -231,6 +263,14 @@ def _extract_place_fields(validated_data):
 def _create_inline_place(place_fields, user_id):
     """Create a Place from inline fields and return its id."""
     visibility_user_ids = place_fields.pop("visibility_user_ids", [])
+    content_type = validate_content_type(
+        place_fields.get("content_type"),
+        default=DEFAULT_CONTENT_TYPE,
+    )
+    if not is_content_type_enabled(current_app.config, content_type):
+        raise ValueError("Content module not enabled")
+
+    place_fields["content_type"] = content_type
     place = Place(created_by=user_id, **place_fields)
     db.session.add(place)
 
@@ -334,6 +374,9 @@ def update_review(review_id, validated_data):
         return jsonify({"error": "Authentication required"}), 401
 
     review = db.get_or_404(Review, review_id, description="Review not found")
+    if not _is_review_module_enabled(review):
+        return _module_not_enabled_response()
+
     raw_payload = request.get_json(silent=True) or {}
 
     if review.user_id != current_user.id and not current_user.is_admin:
@@ -408,6 +451,8 @@ def delete_review(review_id):
         return jsonify({"error": "Authentication required"}), 401
 
     review = db.get_or_404(Review, review_id, description="Review not found")
+    if not _is_review_module_enabled(review):
+        return _module_not_enabled_response()
 
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403
@@ -449,6 +494,8 @@ def upload_photos(review_id):
         return jsonify({"error": "Authentication required"}), 401
 
     review = db.get_or_404(Review, review_id, description="Review not found")
+    if not _is_review_module_enabled(review):
+        return _module_not_enabled_response()
 
     if review.user_id != current_user.id:
         return jsonify({"error": "Permission denied"}), 403
@@ -513,6 +560,8 @@ def delete_review_photo(review_id, photo_id):
         return jsonify({"error": "Authentication required"}), 401
 
     review = db.get_or_404(Review, review_id, description="Review not found")
+    if not _is_review_module_enabled(review):
+        return _module_not_enabled_response()
 
     if review.user_id != current_user.id and not current_user.is_admin:
         return jsonify({"error": "Permission denied"}), 403

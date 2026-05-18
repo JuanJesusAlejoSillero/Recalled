@@ -1,6 +1,6 @@
 # 🌍 Recalled
 
-A self-hosted web application to keep track of places you've visited and write reviews with ratings and photos. Built with Flask and React, fully containerized with Docker.
+A self-hosted web application to keep track of places and other reviewable items, then write reviews with ratings and photos. Built with Flask and React, fully containerized with Docker.
 
 > **Recalled** - _reminiscence, memory, evocation._
 
@@ -9,6 +9,7 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Authentication** - JWT-based login with httpOnly cookie sessions and CSRF protection
 - **Two-factor authentication (2FA)** - TOTP-based with QR code and manual secret key
 - **Places** - Create, search, filter by category, and sort by rating
+- **Content modules** - Review movies, series, books, videogames, and people using the same privacy-aware workflow as places
 - **Place ownership** - Track place creators, admin can reassign ownership
 - **Reviews** - Write reviews with 1-5 star ratings, titles, comments, and visit dates
 - **Selective visibility** - Private places and reviews can be shared with specific users through per-item allowlists
@@ -16,10 +17,11 @@ A self-hosted web application to keep track of places you've visited and write r
 - **Photos** - Upload up to 5 photos per review with automatic thumbnail generation
 - **Unsaved changes protection** - Navigation guards warn before losing unsaved work in review and place forms (in-app navigation, browser close, and back/forward)
 - **Admin panel** - User management and general statistics
-- **Personal dashboard** - Your stats, recent reviews, and top-rated places
+- **Personal dashboard** - Your stats, recent reviews, and top-rated content across enabled modules
 - **Settings** - Change username, password, enable/disable 2FA, and delete account
 - **Version badge** - Displays app version in navbar (baked at Docker build time)
 - **World map** - Optional interactive map showing all your visited places (configurable via `ENABLE_MAP`), with address geocoding via Nominatim so you don't need to enter coordinates manually
+- **Module toggles** - Enable or disable movies, series, books, videogames, and people independently through Compose/env flags
 - **Dark mode** - Toggle between light and dark themes
 - **Multi-language** - Spanish and English with automatic browser detection
 - **Responsive** - Mobile-friendly with hamburger menu navigation
@@ -109,17 +111,23 @@ All configuration is done through the `.env` file. See [.env.example](.env.examp
 | `APP_VERSION`             | `dev`                            | Tag-like string such as `v1.6.0-rc1`                        | Local backend build version for the navbar badge                                |
 | `VITE_API_URL`            | `/api/v1`                        | Relative path or absolute URL                               | Frontend API base URL                                                           |
 | `ENABLE_MAP`              | `true`                           | `true`, `false`                                             | Enable the world map page (Leaflet + OpenStreetMap)                             |
+| `ENABLE_MOVIES`           | `true`                           | `true`, `false`                                             | Enable the movies section and backend access                                    |
+| `ENABLE_SERIES`           | `true`                           | `true`, `false`                                             | Enable the series section and backend access                                    |
+| `ENABLE_BOOKS`            | `true`                           | `true`, `false`                                             | Enable the books section and backend access                                     |
+| `ENABLE_VIDEOGAMES`       | `true`                           | `true`, `false`                                             | Enable the videogames section and backend access                                |
+| `ENABLE_PEOPLE`           | `true`                           | `true`, `false`                                             | Enable the people section and backend access                                    |
 
 The example defaults assume HTTPS and Redis-backed rate limiting. If you run the app without HTTPS, set `JWT_COOKIE_SECURE=false` and keep `JWT_COOKIE_SAMESITE=Lax` before starting the stack. If you do not run Redis, switch `RATELIMIT_STORAGE_URI` to `memory://` (or point it to another Redis instance).
 Set `PROXY_FIX_X_FOR=2` when Recalled sits behind an additional reverse proxy that forwards requests to the frontend container.
 
 ## Privacy Model
 
-- **Public place**: visible to every authenticated user.
-- **Private place**: visible to its creator, admins, and any users explicitly selected in the place allowlist.
-- **Public review**: visible to everyone who can already access its place.
-- **Private review**: visible to its author, admins, and any users explicitly selected in the review allowlist, as long as they can also access the parent place. When a private review is created for a private place without an explicit review allowlist, it inherits the place allowlist by default. If a review uses its own explicit allowlist on a private place, that list must remain a subset of the place allowlist.
+- **Public item**: visible to every authenticated user.
+- **Private item**: visible to its creator, admins, and any users explicitly selected in the item allowlist.
+- **Public review**: visible to everyone who can already access its parent item.
+- **Private review**: visible to its author, admins, and any users explicitly selected in the review allowlist, as long as they can also access the parent item. When a private review is created for a private item without an explicit review allowlist, it inherits the item allowlist by default. If a review uses its own explicit allowlist on a private item, that list must remain a subset of the parent item allowlist.
 - **Photos**: inherit both place and review visibility and are served only through authenticated `/api/v1/media/...` endpoints.
+- Recalled stores all reviewable entities behind the existing `/api/v1/places` resource and differentiates them with a `content_type` field (`place`, `movie`, `series`, `book`, `videogame`, `person`).
 
 ## Project Structure
 
@@ -141,6 +149,7 @@ Recalled/
 │   ├── src/
 │   │   ├── components/      # UI components (auth, admin, places, reviews, settings, common)
 │   │   ├── pages/           # Route pages
+│   │   ├── config/          # Runtime content-module registry and route helpers
 │   │   ├── services/        # Axios API client
 │   │   ├── context/         # Zustand auth store, theme context, language context
 │   │   ├── i18n/            # Translation strings (ES/EN)
@@ -259,7 +268,7 @@ Map, geocoding, auth, and upload flows should still be smoke-tested in the dev s
 
 - **Auth**: `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout`
 - **Users**: `GET /api/v1/users` (admin only), `POST /api/v1/users` (admin only), `GET /api/v1/users/:id`, `PUT /api/v1/users/:id`, `DELETE /api/v1/users/:id` (admin only)
-- **Places**: `GET /api/v1/places`, `POST /api/v1/places`, `GET /api/v1/places/:id`, `PUT /api/v1/places/:id`, `DELETE /api/v1/places/:id`
+- **Places / content items**: `GET /api/v1/places`, `POST /api/v1/places`, `GET /api/v1/places/:id`, `PUT /api/v1/places/:id`, `DELETE /api/v1/places/:id` (`content_type` distinguishes places, movies, series, books, videogames, and people)
 - **Reviews**: `GET /api/v1/reviews`, `POST /api/v1/reviews`, `GET /api/v1/reviews/:id`, `PUT /api/v1/reviews/:id`, `DELETE /api/v1/reviews/:id`
 - **Photos**: `POST /api/v1/reviews/:id/photos`, `DELETE /api/v1/reviews/:id/photos/:photoId`
 - **Media**: `GET /api/v1/media/photos/:filename`, `GET /api/v1/media/photos/thumbnails/:filename`

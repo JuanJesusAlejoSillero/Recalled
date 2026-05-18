@@ -6,6 +6,7 @@ import { reviewsAPI, statsAPI } from '../services/api';
 import ReviewList from '../components/reviews/ReviewList';
 import PlaceList from '../components/places/PlaceList';
 import { useLanguage } from '../context/LanguageContext';
+import { getEnabledContentModules } from '../config/contentModules';
 
 function HomePage() {
   const { user } = useAuth();
@@ -14,6 +15,7 @@ function HomePage() {
   const [topPlaces, setTopPlaces] = useState([]);
   const [userStats, setUserStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const hasExtraModules = getEnabledContentModules().some((module) => module.contentType !== 'place');
 
   useEffect(() => {
     const loadData = async () => {
@@ -68,8 +70,8 @@ function HomePage() {
               <p className="text-xs text-gray-500 dark:text-gray-400">Reviews</p>
             </div>
             <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{userStats.places_visited}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{t('home.stats.places')}</p>
+              <p className="text-2xl font-bold text-green-600 dark:text-green-400">{userStats.reviewed_items ?? userStats.places_visited}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t(hasExtraModules ? 'home.stats.items' : 'home.stats.places')}</p>
             </div>
             <div className="text-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{userStats.avg_rating || '-'}</p>
@@ -88,7 +90,7 @@ function HomePage() {
         <section>
           <div className="flex items-center space-x-2 mb-4">
             <FiTrendingUp className="w-5 h-5 text-primary-600" />
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t('home.topPlaces')}</h2>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">{t(hasExtraModules ? 'home.topContent' : 'home.topPlaces')}</h2>
           </div>
           <PlaceList places={topPlaces.slice(0, 6)} />
         </section>
