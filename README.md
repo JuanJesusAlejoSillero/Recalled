@@ -16,7 +16,7 @@ A self-hosted web application to keep track of places and other reviewable items
 - **Privacy-aware defaults** - Reviews for private places are auto-marked as private, inherit the place allowlist by default, and still support explicit review-level sharing overrides when needed
 - **Photos** - Upload up to 5 photos per review with automatic thumbnail generation
 - **Unsaved changes protection** - Navigation guards warn before losing unsaved work in review and place forms (in-app navigation, browser close, and back/forward)
-- **Admin panel** - User management and general statistics
+- **Admin panel** - User management, password reset, and general statistics
 - **Personal dashboard** - Your stats, recent reviews, and top-rated content across enabled modules
 - **Settings** - Change username, password, enable/disable 2FA, and delete account
 - **Version badge** - Displays app version in navbar (baked at Docker build time)
@@ -270,7 +270,7 @@ Map, geocoding, auth, and upload flows should still be smoke-tested in the dev s
 ## API Endpoints
 
 - **Auth**: `POST /api/v1/auth/login`, `POST /api/v1/auth/refresh`, `GET /api/v1/auth/me`, `POST /api/v1/auth/logout`
-- **Users**: `GET /api/v1/users` (admin only), `POST /api/v1/users` (admin only), `GET /api/v1/users/:id`, `PUT /api/v1/users/:id`, `DELETE /api/v1/users/:id` (admin only)
+- **Users**: `GET /api/v1/users` (admin only), `POST /api/v1/users` (admin only), `GET /api/v1/users/:id`, `PUT /api/v1/users/:id`, `DELETE /api/v1/users/:id` (admin only), `POST /api/v1/users/:id/reset-password` (admin only)
 - **Places / content items**: `GET /api/v1/places`, `POST /api/v1/places`, `GET /api/v1/places/:id`, `PUT /api/v1/places/:id`, `DELETE /api/v1/places/:id` (`content_type` distinguishes places, movies, series, books, videogames, and people)
 - **Reviews**: `GET /api/v1/reviews`, `POST /api/v1/reviews`, `GET /api/v1/reviews/:id`, `PUT /api/v1/reviews/:id`, `DELETE /api/v1/reviews/:id`
 - **Photos**: `POST /api/v1/reviews/:id/photos`, `DELETE /api/v1/reviews/:id/photos/:photoId`

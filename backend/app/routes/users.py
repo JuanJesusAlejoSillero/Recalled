@@ -1,5 +1,8 @@
 """User management routes (admin only for most operations)."""
 
+import secrets
+import string
+
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
@@ -8,8 +11,15 @@ from app import db, limiter
 from app.middleware.auth import admin_required, get_current_user
 from app.middleware.validators import validate_json
 from app.models.user import User
-from app.schemas.user_schema import UserCreateSchema, UserUpdateSchema
+from app.schemas.user_schema import UserCreateSchema, UserUpdateSchema, AdminResetPasswordSchema
 from app.utils.security import clear_auth_cookies, set_auth_cookies
+
+
+def _generate_temp_password(length=16):
+    """Generate a random temporary password."""
+    alphabet = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
 
 users_bp = Blueprint("users", __name__)
 
@@ -171,3 +181,38 @@ def delete_user(user_id):
     db.session.commit()
 
     return jsonify({"message": f"User '{user.username}' deleted"}), 200
+
+
+@users_bp.route("/<int:user_id>/reset-password", methods=["POST"])
+@admin_required
+@limiter.limit("10/minute")
+@validate_json(AdminResetPasswordSchema)
+def reset_password(user_id, validated_data):
+    """Reset a user's password (admin only). New password is returned once."""
+    current_user = get_current_user()
+
+    if current_user and current_user.id == user_id:
+        return jsonify({"error": "Cannot reset your own password"}), 400
+
+    user = db.get_or_404(User, user_id, description="User not found")
+
+    if validated_data.get("generate"):
+        new_password = _generate_temp_password()
+    else:
+        new_password = validated_data["new_password"]
+
+    user.set_password(new_password)
+
+    # Disable 2FA if enabled — user lost access to authenticator app
+    if user.totp_enabled:
+        user.totp_secret = None
+        user.totp_enabled = False
+        user.totp_last_counter = None
+
+    db.session.commit()
+
+    return jsonify({
+        "message": "Password reset successful",
+        "new_password": new_password,
+        "user": user.to_dict(),
+    }), 200

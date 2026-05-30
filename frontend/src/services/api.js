@@ -126,6 +126,7 @@ export const usersAPI = {
   create: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
   delete: (id) => api.delete(`/users/${id}`),
+  resetPassword: (id, data) => api.post(`/users/${id}/reset-password`, data),
 };
 
 // --- Places ---

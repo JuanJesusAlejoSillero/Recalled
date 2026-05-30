@@ -105,3 +105,10 @@ class DeleteAccountSchema(Schema):
     """Schema for account deletion confirmation."""
 
     password = fields.Str(required=True)
+
+
+class AdminResetPasswordSchema(Schema):
+    """Schema for admin resetting a user's password."""
+
+    new_password = fields.Str(validate=validate.Length(min=8, max=128))
+    generate = fields.Bool(load_default=False)
