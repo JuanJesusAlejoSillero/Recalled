@@ -10,12 +10,19 @@ import os
 from flask import Blueprint, current_app, send_from_directory
 from flask_jwt_extended import jwt_required
 
-from app import db
+from app import db, limiter
 from app.middleware.auth import get_current_user
 from app.models.photo import ReviewPhoto
 from app.utils.visibility import can_view_review
 
 media_bp = Blueprint("media", __name__)
+
+
+@limiter.limit("60/minute", override_defaults=True)
+@media_bp.record_once
+def _set_media_rate_limit(state):
+    """Apply a 60/minute rate limit to all media endpoints."""
+    pass
 
 
 def _can_view_photo(photo, current_user) -> bool:

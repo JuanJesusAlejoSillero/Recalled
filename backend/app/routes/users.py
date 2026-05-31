@@ -104,6 +104,7 @@ def get_user(user_id):
 
 @users_bp.route("", methods=["POST"])
 @admin_required
+@limiter.limit("10/minute")
 @validate_json(UserCreateSchema)
 def create_user(validated_data):
     """Create a new user (admin only)."""

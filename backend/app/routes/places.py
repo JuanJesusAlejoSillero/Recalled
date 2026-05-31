@@ -5,7 +5,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import func
 from marshmallow import ValidationError
 
-from app import db
+from app import db, limiter
 from app.models.place import Place
 from app.models.review import Review
 from app.middleware.auth import admin_required, get_current_user
@@ -247,6 +247,7 @@ def get_place(place_id):
 
 @places_bp.route("", methods=["POST"])
 @jwt_required()
+@limiter.limit("10/minute")
 @validate_json(PlaceCreateSchema)
 def create_place(validated_data):
     """Create a new place. The creator is recorded."""

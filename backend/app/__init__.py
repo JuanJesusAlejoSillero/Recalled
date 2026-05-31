@@ -66,6 +66,7 @@ def create_app():
 
     # Health check endpoint
     @app.route("/api/v1/health")
+    @limiter.limit("5/minute")
     def health():
         return {"status": "ok"}, 200
 
