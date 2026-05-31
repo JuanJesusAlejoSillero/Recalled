@@ -2,6 +2,7 @@
 
 import base64
 import io
+import secrets
 import time
 from datetime import timedelta
 
@@ -152,7 +153,6 @@ def setup_2fa():
     qr_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
     return jsonify({
-        "secret": secret,
         "qr_code": f"data:image/png;base64,{qr_base64}",
     }), 200
 
@@ -181,8 +181,22 @@ def confirm_2fa_setup(validated_data):
     user.totp_enabled = True
     db.session.commit()
 
+    # Generate recovery codes (hashed for storage, shown once to the user)
+    import bcrypt as _bcrypt
+    recovery_codes_plain = []
+    recovery_codes_hashed = []
+    for _ in range(8):
+        code = secrets.token_hex(4)  # 8 hex chars, e.g. "a1b2c3d4"
+        recovery_codes_plain.append(code)
+        hashed = _bcrypt.hashpw(code.encode("utf-8"), _bcrypt.gensalt(rounds=10)).decode("utf-8")
+        recovery_codes_hashed.append(hashed)
+
+    user.recovery_codes = recovery_codes_hashed
+    db.session.commit()
+
     response = jsonify({
         "message": "2FA enabled successfully",
+        "recovery_codes": recovery_codes_plain,
         "user": user.to_dict(),
     })
     return set_auth_cookies(response, user)
@@ -244,6 +258,38 @@ def verify_2fa(validated_data):
 
     response = jsonify({"user": user.to_dict()})
     return set_auth_cookies(response, user)
+
+
+@auth_bp.route("/2fa/recover", methods=["POST"])
+@limiter.limit("3/minute")
+@validate_json(TotpCodeSchema)
+def recover_2fa(validated_data):
+    """Authenticate using a recovery code when TOTP is unavailable."""
+    try:
+        from flask import request as _req
+        username = _req.get_json(silent=True).get("username", "")
+    except Exception:
+        return jsonify({"error": "Invalid request"}), 400
+
+    user = User.query.filter_by(username=username).first()
+    if not user or not user.totp_enabled or not user.recovery_codes:
+        return jsonify({"error": "Invalid credentials"}), 401
+
+    import bcrypt as _bcrypt
+    input_code = validated_data["totp_code"]
+    stored_hashes = user.recovery_codes
+
+    for i, hashed in enumerate(stored_hashes):
+        if _bcrypt.checkpw(input_code.encode("utf-8"), hashed.encode("utf-8")):
+            remaining = list(stored_hashes)
+            remaining.pop(i)
+            user.recovery_codes = remaining
+            db.session.commit()
+
+            response = jsonify({"user": user.to_dict()})
+            return set_auth_cookies(response, user)
+
+    return jsonify({"error": "Invalid credentials"}), 401
 
 
 # ----- Account management -----
