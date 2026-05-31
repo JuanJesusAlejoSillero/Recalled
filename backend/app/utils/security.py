@@ -4,6 +4,8 @@ import hashlib
 from datetime import timezone
 import re
 
+from markupsafe import escape
+
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
@@ -19,7 +21,7 @@ def sanitize_string(value: str | None) -> str | None:
     """Strip, remove HTML tags and clean a string value."""
     if value is None:
         return None
-    clean = re.sub(r"<[^>]+>", "", value)
+    clean = escape(value)
     return clean.strip()
 
 
