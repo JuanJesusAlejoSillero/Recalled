@@ -2,7 +2,7 @@
 
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, jwt_required
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_migrate import Migrate
@@ -10,6 +10,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.utils.security import clear_access_cookies, clear_auth_cookies
+from app.middleware.auth import admin_required
 
 db = SQLAlchemy()
 jwt = JWTManager()
@@ -72,6 +73,8 @@ def create_app():
 
     # App version endpoint (version baked into /app/VERSION at image build time)
     @app.route("/api/v1/version")
+    @jwt_required()
+    @admin_required
     def version():
         try:
             with open("/app/VERSION") as f:
@@ -84,6 +87,12 @@ def create_app():
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):
         return jsonify({"error": "Not found"}), 404
+
+    @app.after_request
+    def add_security_headers(response):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        return response
 
     @app.errorhandler(429)
     def ratelimit_handler(error):

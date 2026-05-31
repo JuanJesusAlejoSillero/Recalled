@@ -216,11 +216,10 @@ def disable_2fa(validated_data):
     if not user.totp_enabled:
         return jsonify({"error": "2FA is not enabled"}), 400
 
-    if not user.check_password(validated_data["password"]):
-        return jsonify({"error": "Invalid password"}), 401
-
-    if not _verify_totp_strict(user, validated_data["totp_code"]):
-        return jsonify({"error": "Invalid TOTP code"}), 401
+    password_valid = user.check_password(validated_data["password"])
+    totp_valid = _verify_totp_strict(user, validated_data["totp_code"])
+    if not password_valid or not totp_valid:
+        return jsonify({"error": "Invalid credentials"}), 401
 
     user.totp_secret = None
     user.totp_enabled = False
