@@ -12,7 +12,9 @@ from app.middleware.auth import admin_required, get_current_user
 from app.middleware.validators import validate_json
 from app.models.user import User
 from app.schemas.user_schema import UserCreateSchema, UserUpdateSchema, AdminResetPasswordSchema
+from app.models.review import Review
 from app.utils.security import clear_auth_cookies, set_auth_cookies
+from app.utils.file_handler import delete_photo
 
 
 def _generate_temp_password(length=16):
@@ -177,6 +179,11 @@ def delete_user(user_id):
         return jsonify({"error": "Cannot delete your own account"}), 400
 
     user = db.get_or_404(User, user_id, description="User not found")
+
+    # Clean up photos from all user's reviews before deleting
+    for review in user.reviews.all():
+        for photo in review.photos:
+            delete_photo(photo.filename)
 
     db.session.delete(user)
     db.session.commit()

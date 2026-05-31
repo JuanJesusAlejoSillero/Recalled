@@ -18,6 +18,7 @@ from app.utils.content_types import (
     is_content_type_enabled,
     validate_content_type,
 )
+from app.utils.file_handler import delete_photo
 from app.utils.visibility import (
     can_view_place,
     place_visibility_filter,
@@ -308,6 +309,13 @@ def update_place(place_id, validated_data):
     if not current_user.is_admin or validated_data.get("created_by") is None:
         validated_data.pop("created_by", None)
 
+    # Validate created_by user exists if admin provided it
+    if "created_by" in validated_data:
+        from app.models.user import User
+        target_user = db.session.get(User, validated_data["created_by"])
+        if not target_user:
+            return jsonify({"error": "User not found"}), 404
+
     was_private = bool(place.is_private)
     previous_place_user_ids = [user.id for user in place.visible_users]
     visibility_user_ids = validated_data.pop(
@@ -372,6 +380,10 @@ def delete_place(place_id):
         return jsonify({"error": "Authentication required"}), 401
 
     if current_user.is_admin:
+        # Clean up photos from all reviews before deleting
+        for review in place.reviews.all():
+            for photo in review.photos:
+                delete_photo(photo.filename)
         db.session.delete(place)
         db.session.commit()
         return jsonify({"message": f"Place '{place.name}' deleted"}), 200
@@ -387,6 +399,11 @@ def delete_place(place_id):
 
     if other_reviews > 0:
         return jsonify({"error": "Cannot delete: other users have reviews on this place"}), 403
+
+    # Clean up photos from all reviews before deleting
+    for review in place.reviews.all():
+        for photo in review.photos:
+            delete_photo(photo.filename)
 
     db.session.delete(place)
     db.session.commit()

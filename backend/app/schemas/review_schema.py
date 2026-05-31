@@ -21,7 +21,7 @@ class ReviewSchema(Schema):
     place_content_type = fields.Str(dump_only=True)
     rating = fields.Int(required=True, validate=validate.Range(min=1, max=5))
     title = fields.Str(allow_none=True, validate=validate.Length(max=200))
-    comment = fields.Str(allow_none=True)
+    comment = fields.Str(allow_none=True, validate=validate.Length(max=5000))
     visit_date = fields.Date(allow_none=True)
     is_private = fields.Bool(dump_default=False)
     created_at = fields.DateTime(dump_only=True)
@@ -63,7 +63,7 @@ class ReviewCreateSchema(Schema):
     place_id = fields.Int(load_default=None)
     rating = fields.Int(required=True, validate=validate.Range(min=1, max=5))
     title = fields.Str(allow_none=True, load_default=None, validate=validate.Length(max=200))
-    comment = fields.Str(allow_none=True, load_default=None)
+    comment = fields.Str(allow_none=True, load_default=None, validate=validate.Length(max=5000))
     visit_date = fields.Date(allow_none=True, load_default=None)
     is_private = fields.Bool(load_default=False)
     visibility_user_ids = fields.List(
@@ -109,7 +109,7 @@ class ReviewUpdateSchema(Schema):
     place_id = fields.Int()
     rating = fields.Int(validate=validate.Range(min=1, max=5))
     title = fields.Str(allow_none=True, validate=validate.Length(max=200))
-    comment = fields.Str(allow_none=True)
+    comment = fields.Str(allow_none=True, validate=validate.Length(max=5000))
     visit_date = fields.Date(allow_none=True)
     is_private = fields.Bool()
     visibility_user_ids = fields.List(
