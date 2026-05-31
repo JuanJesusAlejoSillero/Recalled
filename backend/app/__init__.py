@@ -82,12 +82,23 @@ def create_app():
     # New code should use /api/v1/media/ which enforces auth + visibility.
     @app.route("/uploads/<path:filename>")
     def uploaded_file(filename):
-        from flask import abort
-        abort(404)
+        return jsonify({"error": "Not found"}), 404
 
     @app.errorhandler(429)
     def ratelimit_handler(error):
         return {"error": "Rate limit exceeded"}, 429
+
+    @app.errorhandler(404)
+    def not_found(error):
+        return jsonify({"error": "Not found"}), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed(error):
+        return jsonify({"error": "Method not allowed"}), 405
+
+    @app.errorhandler(500)
+    def internal_error(error):
+        return jsonify({"error": "Internal server error"}), 500
 
     def auth_error(message: str, status_code: int):
         response = jsonify({"error": message})
