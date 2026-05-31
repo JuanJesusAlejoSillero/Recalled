@@ -126,6 +126,7 @@ def logout():
 
 @auth_bp.route("/2fa/setup", methods=["POST"])
 @jwt_required()
+@limiter.limit("5/minute")
 def setup_2fa():
     """Generate a TOTP secret and return QR code for setup."""
     user_id = get_jwt_identity()
@@ -158,6 +159,7 @@ def setup_2fa():
 
 @auth_bp.route("/2fa/confirm-setup", methods=["POST"])
 @jwt_required()
+@limiter.limit(lambda: current_app.config["AUTH_2FA_RATE_LIMIT"])
 @validate_json(TotpCodeSchema)
 def confirm_2fa_setup(validated_data):
     """Confirm 2FA setup by verifying the first TOTP code."""
@@ -188,6 +190,7 @@ def confirm_2fa_setup(validated_data):
 
 @auth_bp.route("/2fa/disable", methods=["POST"])
 @jwt_required()
+@limiter.limit(lambda: current_app.config["AUTH_2FA_RATE_LIMIT"])
 @validate_json(TotpDisableSchema)
 def disable_2fa(validated_data):
     """Disable 2FA for the current user."""
@@ -248,6 +251,7 @@ def verify_2fa(validated_data):
 
 @auth_bp.route("/change-password", methods=["POST"])
 @jwt_required()
+@limiter.limit(lambda: current_app.config["AUTH_LOGIN_RATE_LIMIT"])
 @validate_json(ChangePasswordSchema)
 def change_password(validated_data):
     """Change the current user's password."""
@@ -271,6 +275,7 @@ def change_password(validated_data):
 
 @auth_bp.route("/delete-account", methods=["POST"])
 @jwt_required()
+@limiter.limit("3/minute")
 @validate_json(DeleteAccountSchema)
 def delete_account(validated_data):
     """Delete the current user's account."""
