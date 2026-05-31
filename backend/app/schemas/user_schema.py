@@ -2,7 +2,7 @@
 
 from marshmallow import Schema, fields, validate, pre_load
 
-from app.utils.security import sanitize_string
+from app.utils.security import sanitize_string, validate_password_complexity
 
 
 class UserSchema(Schema):
@@ -26,7 +26,7 @@ class UserCreateSchema(Schema):
     )
     password = fields.Str(
         required=True,
-        validate=validate.Length(min=8, max=128),
+        validate=[validate.Length(min=8, max=128), validate_password_complexity],
     )
     is_admin = fields.Bool(load_default=False)
 
@@ -45,7 +45,7 @@ class UserUpdateSchema(Schema):
             error="Username must contain only letters, numbers and underscores",
         )],
     )
-    password = fields.Str(validate=validate.Length(min=8, max=128))
+    password = fields.Str(validate=[validate.Length(min=8, max=128), validate_password_complexity])
     is_admin = fields.Bool()
 
     @pre_load
@@ -97,7 +97,7 @@ class ChangePasswordSchema(Schema):
     current_password = fields.Str(required=True)
     new_password = fields.Str(
         required=True,
-        validate=validate.Length(min=8, max=128),
+        validate=[validate.Length(min=8, max=128), validate_password_complexity],
     )
 
 

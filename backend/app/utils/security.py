@@ -12,6 +12,7 @@ from flask_jwt_extended import (
     unset_access_cookies,
     unset_jwt_cookies,
 )
+from marshmallow import ValidationError
 
 
 def sanitize_string(value: str | None) -> str | None:
@@ -20,6 +21,19 @@ def sanitize_string(value: str | None) -> str | None:
         return None
     clean = re.sub(r"<[^>]+>", "", value)
     return clean.strip()
+
+
+def validate_password_complexity(password):
+    """Validate that a password meets complexity requirements."""
+    if not re.search(r"[A-Z]", password):
+        raise ValidationError("Password must contain an uppercase letter")
+    if not re.search(r"[a-z]", password):
+        raise ValidationError("Password must contain a lowercase letter")
+    if not re.search(r"\d", password):
+        raise ValidationError("Password must contain a digit")
+    if not re.search(r"[!@#$%^&*(),.?\":{}|<>_\-+=~`\[\]\\\\/]", password):
+        raise ValidationError("Password must contain a special character")
+    return password
 
 
 def get_user_state_marker(user) -> str:
