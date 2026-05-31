@@ -91,8 +91,10 @@ class Config:
     JWT_SESSION_COOKIE = False
     JWT_ACCESS_COOKIE_PATH = "/api/"
     JWT_REFRESH_COOKIE_PATH = "/api/v1/auth/refresh"
-    JWT_ACCESS_CSRF_COOKIE_PATH = "/"
-    JWT_REFRESH_CSRF_COOKIE_PATH = "/"
+    JWT_ACCESS_CSRF_COOKIE_PATH = "/api/"
+    JWT_REFRESH_CSRF_COOKIE_PATH = "/api/v1/auth/refresh"
+    JWT_ALGORITHM = "HS256"
+    JWT_DECODE_ALGORITHMS = ["HS256"]
 
     # Auth hardening
     AUTH_LOGIN_RATE_LIMIT = os.environ.get("AUTH_LOGIN_RATE_LIMIT", "5/minute")
